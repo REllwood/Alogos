@@ -3,7 +3,6 @@
 > A lightweight JavaScript library for detecting synthetic images using luminance-gradient PCA analysis
 
 [![NPM Version](https://img.shields.io/npm/v/alogos.svg)](https://www.npmjs.com/package/alogos)
-[![License](https://img.shields.io/npm/l/alogos.svg)](https://github.com/REllwood/alogos/blob/main/LICENCE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
 
 ## Overview
