@@ -1,5 +1,6 @@
 import { SyntheticImageDetector, detectSyntheticImage } from './detector';
 import { ImageData } from './types';
+import { computeConfidence } from './confidence';
 
 describe('SyntheticImageDetector', () => {
   // Helper to create test image data
@@ -54,6 +55,47 @@ describe('SyntheticImageDetector', () => {
       expect(options.threshold).toBe(0.7);
       expect(options.numComponents).toBe(3);
     });
+
+    it('should use defaults for options passed as undefined', () => {
+      const detector = new SyntheticImageDetector({ threshold: undefined });
+      expect(detector.getOptions().threshold).toBe(0.5);
+    });
+
+    it.each([0, 1, -0.2, 1.5, NaN, Infinity])('should reject threshold %p', (threshold) => {
+      expect(() => new SyntheticImageDetector({ threshold })).toThrow(RangeError);
+    });
+
+    it.each([0, -1, 2.5, NaN])('should reject numComponents %p', (numComponents) => {
+      expect(() => new SyntheticImageDetector({ numComponents })).toThrow(RangeError);
+    });
+
+    it.each([0, 2, 10.5, NaN])('should reject minImageSize %p', (minImageSize) => {
+      expect(() => new SyntheticImageDetector({ minImageSize })).toThrow(RangeError);
+    });
+
+    it('should reject non-boolean flags', () => {
+      expect(
+        () => new SyntheticImageDetector({ normaliseGradients: 'yes' as unknown as boolean })
+      ).toThrow(TypeError);
+      expect(
+        () => new SyntheticImageDetector({ filterCompressionArtifacts: 1 as unknown as boolean })
+      ).toThrow(TypeError);
+    });
+  });
+
+  describe('confidence', () => {
+    it('should match the confidence formula for every threshold', () => {
+      const image = createTestImage(100, 100, 'checkerboard');
+      const rawScore = new SyntheticImageDetector().analyse(image).rawScore;
+
+      for (const threshold of [0.1, 0.3, 0.5, 0.7, 0.9]) {
+        const result = new SyntheticImageDetector({ threshold }).analyse(image);
+
+        expect(result.rawScore).toBe(rawScore);
+        expect(result.isSynthetic).toBe(rawScore >= threshold);
+        expect(result.confidence).toBe(computeConfidence(rawScore, threshold));
+      }
+    });
   });
 
   describe('analyse', () => {
@@ -103,6 +145,18 @@ describe('SyntheticImageDetector', () => {
           width: 0,
           height: 0,
           data: new Uint8ClampedArray([]),
+        })
+      ).toThrow('Invalid image dimensions');
+    });
+
+    it('should throw error for non-integer dimensions', () => {
+      const detector = new SyntheticImageDetector();
+
+      expect(() =>
+        detector.analyse({
+          width: 80.5,
+          height: 80,
+          data: new Uint8ClampedArray(80 * 80 * 4),
         })
       ).toThrow('Invalid image dimensions');
     });
@@ -169,6 +223,13 @@ describe('SyntheticImageDetector', () => {
       
       const options = detector.getOptions();
       expect(options.threshold).toBe(0.8);
+    });
+
+    it('should reject invalid options and keep the existing ones', () => {
+      const detector = new SyntheticImageDetector({ threshold: 0.6 });
+
+      expect(() => detector.setOptions({ threshold: 2 })).toThrow(RangeError);
+      expect(detector.getOptions().threshold).toBe(0.6);
     });
 
     it('should merge with existing options', () => {

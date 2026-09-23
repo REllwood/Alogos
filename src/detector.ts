@@ -2,6 +2,7 @@ import { ImageData, DetectionResult, DetectorOptions, GradientField } from './ty
 import { imageToluminanceMatrix, normaliseLuminance, filterCompressionArtifacts } from './luminance';
 import { computeGradients, flattenGradientField, computeGradientCoherence } from './gradients';
 import { performPCA, computePCAScore } from './pca';
+import { computeConfidence } from './confidence';
 
 /**
  * Default detector options
@@ -15,13 +16,68 @@ const DEFAULT_OPTIONS: Required<DetectorOptions> = {
 };
 
 /**
+ * Merges option overrides into a base set, ignoring overrides that are undefined
+ *
+ * @param base - Complete set of options
+ * @param overrides - Options to apply on top
+ * @returns Merged options
+ */
+function mergeOptions(
+  base: Required<DetectorOptions>,
+  overrides: DetectorOptions
+): Required<DetectorOptions> {
+  const merged = { ...base };
+  for (const key of Object.keys(overrides) as (keyof DetectorOptions)[]) {
+    if (overrides[key] !== undefined) {
+      (merged as Record<keyof DetectorOptions, unknown>)[key] = overrides[key];
+    }
+  }
+  return merged;
+}
+
+/**
+ * Checks that detector options are usable
+ *
+ * @param options - Complete set of options to validate
+ * @throws RangeError or TypeError describing the first invalid option
+ */
+function validateOptions(options: Required<DetectorOptions>): void {
+  const { threshold, numComponents, minImageSize, normaliseGradients, filterCompressionArtifacts } =
+    options;
+
+  if (typeof threshold !== 'number' || !(threshold > 0 && threshold < 1)) {
+    throw new RangeError(`threshold must be a number between 0 and 1 (exclusive), got ${threshold}`);
+  }
+  if (!Number.isInteger(numComponents) || numComponents < 1) {
+    throw new RangeError(`numComponents must be a positive integer, got ${numComponents}`);
+  }
+  if (!Number.isInteger(minImageSize) || minImageSize < 3) {
+    throw new RangeError(`minImageSize must be an integer of at least 3, got ${minImageSize}`);
+  }
+  if (typeof normaliseGradients !== 'boolean') {
+    throw new TypeError(`normaliseGradients must be a boolean, got ${typeof normaliseGradients}`);
+  }
+  if (typeof filterCompressionArtifacts !== 'boolean') {
+    throw new TypeError(
+      `filterCompressionArtifacts must be a boolean, got ${typeof filterCompressionArtifacts}`
+    );
+  }
+}
+
+/**
  * Main detector class for synthetic image detection
  */
 export class SyntheticImageDetector {
   private options: Required<DetectorOptions>;
 
+  /**
+   * @param options - Detector configuration (unspecified options use defaults)
+   * @throws RangeError or TypeError if an option is invalid
+   */
   constructor(options: DetectorOptions = {}) {
-    this.options = { ...DEFAULT_OPTIONS, ...options };
+    const merged = mergeOptions(DEFAULT_OPTIONS, options);
+    validateOptions(merged);
+    this.options = merged;
   }
 
   /**
@@ -76,12 +132,11 @@ export class SyntheticImageDetector {
     // Determine if synthetic based on threshold
     const isSynthetic = rawScore >= this.options.threshold;
 
-    // Confidence is the distance from threshold
-    const confidence = Math.abs(rawScore - this.options.threshold) / this.options.threshold;
+    const confidence = computeConfidence(rawScore, this.options.threshold);
 
     return {
       isSynthetic,
-      confidence: Math.min(1, confidence),
+      confidence,
       rawScore,
       metadata: {
         pixelsAnalysed: imageData.width * imageData.height,
@@ -113,9 +168,12 @@ export class SyntheticImageDetector {
    * Updates detector options
    * 
    * @param options - New options to merge with existing
+   * @throws RangeError or TypeError if an option is invalid (existing options are kept)
    */
   public setOptions(options: Partial<DetectorOptions>): void {
-    this.options = { ...this.options, ...options };
+    const merged = mergeOptions(this.options, options);
+    validateOptions(merged);
+    this.options = merged;
   }
 
   /**
@@ -139,8 +197,8 @@ export class SyntheticImageDetector {
     }
 
     if (
-      typeof imageData.width !== 'number' ||
-      typeof imageData.height !== 'number' ||
+      !Number.isInteger(imageData.width) ||
+      !Number.isInteger(imageData.height) ||
       imageData.width <= 0 ||
       imageData.height <= 0
     ) {
