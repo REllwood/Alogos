@@ -197,6 +197,16 @@ describe('SyntheticImageDetector', () => {
   });
 
   describe('analyseGradients', () => {
+    it('should apply the same preprocessing as analyse', () => {
+      const imageData = createTestImage(80, 80, 'gradient');
+      const filtered = new SyntheticImageDetector({ filterCompressionArtifacts: true });
+      const unfiltered = new SyntheticImageDetector({ filterCompressionArtifacts: false });
+
+      expect(filtered.analyseGradients(imageData)).not.toEqual(
+        unfiltered.analyseGradients(imageData)
+      );
+    });
+
     it('should return gradient field', () => {
       const detector = new SyntheticImageDetector();
       const imageData = createTestImage(100, 100, 'gradient');

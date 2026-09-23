@@ -4,6 +4,7 @@ import {
   normalisePlane,
   gradientStatistics,
   projectionKurtosis,
+  localCoherence,
 } from './analysis';
 import {
   imageToLuminanceMatrix,
@@ -115,6 +116,18 @@ describe('Typed-array analysis pipeline', () => {
     const m4 = projection.reduce((a, b) => a + (b - mean) ** 4, 0) / n;
 
     expect(projectionKurtosis(plane, stats, pca.components[0])).toBeCloseTo(m4 / (m2 * m2), 6);
+  });
+
+  it('should compute the same local coherence as computeGradientCoherence', () => {
+    for (const [w, h] of [
+      [97, 83],
+      [16, 16],
+      [5, 12],
+    ]) {
+      const plane = luminancePlane(texturedImage(w, h, 7));
+      const expected = computeGradientCoherence(computeGradients(toMatrix(plane)));
+      expect(localCoherence(plane)).toBeCloseTo(expected, 6);
+    }
   });
 
   it('should return 0 kurtosis when the projection has no variance', () => {
