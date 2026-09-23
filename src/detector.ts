@@ -1,7 +1,14 @@
 import { ImageData, DetectionResult, DetectorOptions, GradientField } from './types';
-import { imageToluminanceMatrix, normaliseLuminance, filterCompressionArtifacts } from './luminance';
-import { computeGradients, flattenGradientField, computeGradientCoherence } from './gradients';
-import { performPCA, computePCAScore } from './pca';
+import { imageToluminanceMatrix, normaliseLuminance } from './luminance';
+import { computeGradients } from './gradients';
+import { computeEigenDecomposition, combinePCAScore } from './pca';
+import {
+  luminancePlane,
+  filterPlane,
+  normalisePlane,
+  gradientStatistics,
+  projectionKurtosis,
+} from './analysis';
 import { computeConfidence } from './confidence';
 
 /**
@@ -101,33 +108,36 @@ export class SyntheticImageDetector {
     }
 
     // Step 1: Convert RGB to luminance
-    let luminanceMatrix = imageToluminanceMatrix(imageData);
+    let plane = luminancePlane(imageData);
 
     // Step 2: Optionally filter compression artifacts
     if (this.options.filterCompressionArtifacts) {
-      luminanceMatrix = filterCompressionArtifacts(luminanceMatrix);
+      plane = filterPlane(plane);
     }
 
     // Step 3: Optionally normalise
-    const processedLuminance = this.options.normaliseGradients
-      ? normaliseLuminance(luminanceMatrix)
-      : luminanceMatrix;
+    if (this.options.normaliseGradients) {
+      plane = normalisePlane(plane);
+    }
 
-    // Step 4: Compute spatial gradients
-    const gradientField = computeGradients(processedLuminance);
+    // Step 4: Gradient statistics (gradients are computed on the fly, never stored)
+    const stats = gradientStatistics(plane);
 
-    // Step 5: Flatten gradient field into matrix
-    const gradientMatrix = flattenGradientField(gradientField);
+    // Step 5: PCA of the 2 × 2 gradient covariance matrix
+    const { eigenvalues, eigenvectors } = computeEigenDecomposition(stats.covariance);
+    const totalVariance = stats.covariance[0][0] + stats.covariance[1][1];
+    const primaryVariance = totalVariance > 0 ? Math.max(0, eigenvalues[0]) / totalVariance : 0;
 
-    // Step 6: Perform PCA analysis
-    const pcaResult = performPCA(gradientMatrix, this.options.numComponents);
+    // Step 6: Kurtosis of the gradients projected onto the first principal component
+    const kurtosis = projectionKurtosis(plane, stats, eigenvectors[0]);
 
     // Step 7: Compute detection score
-    const rawScore = computePCAScore(pcaResult);
+    const rawScore = combinePCAScore(primaryVariance, kurtosis);
 
-    // Step 8: Compute additional metrics
-    const coherence = computeGradientCoherence(gradientField);
-    const primaryVariance = pcaResult.explainedVariance[0] || 0;
+    // Step 8: Gradient field coherence (resultant length over total magnitude)
+    const [meanX, meanY] = stats.mean;
+    const coherence =
+      stats.sumMagnitude > 0 ? (Math.hypot(meanX, meanY) * stats.count) / stats.sumMagnitude : 0;
 
     // Determine if synthetic based on threshold
     const isSynthetic = rawScore >= this.options.threshold;
