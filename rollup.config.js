@@ -1,31 +1,38 @@
 import typescript from '@rollup/plugin-typescript';
-import resolve from '@rollup/plugin-node-resolve';
-import commonjs from '@rollup/plugin-commonjs';
+import { dts } from 'rollup-plugin-dts';
 
 export default [
+  // JavaScript bundles: CommonJS for require(), ES module for import
   {
     input: 'src/index.ts',
     output: [
       {
-        file: 'dist/index.js',
+        file: 'dist/index.cjs',
         format: 'cjs',
+        exports: 'named',
         sourcemap: true,
       },
       {
-        file: 'dist/index.esm.js',
+        file: 'dist/index.mjs',
         format: 'es',
         sourcemap: true,
       },
     ],
     plugins: [
-      resolve(),
-      commonjs(),
       typescript({
         tsconfig: './tsconfig.json',
-        declaration: true,
-        declarationDir: './dist',
+        declaration: false,
+        declarationMap: false,
       }),
     ],
   },
+  // Type declarations bundled into a single file per module format
+  {
+    input: 'src/index.ts',
+    output: [
+      { file: 'dist/index.d.ts', format: 'es' },
+      { file: 'dist/index.d.cts', format: 'es' },
+    ],
+    plugins: [dts()],
+  },
 ];
-

@@ -1,4 +1,5 @@
-export default {
+module.exports = {
+  root: true,
   parser: '@typescript-eslint/parser',
   extends: [
     'eslint:recommended',
@@ -8,10 +9,13 @@ export default {
     ecmaVersion: 2020,
     sourceType: 'module',
   },
+  env: {
+    node: true,
+    es2020: true,
+  },
   rules: {
     '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     '@typescript-eslint/explicit-function-return-type': 'off',
     '@typescript-eslint/no-explicit-any': 'warn',
   },
 };
-
