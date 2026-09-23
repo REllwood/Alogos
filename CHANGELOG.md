@@ -35,8 +35,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `setOptions()` leaves the existing options unchanged. Options passed as `undefined` fall back
   to their defaults.
 - Image width and height must now be integers.
+- Analysis was slow and memory-hungry because every intermediate step (luminance, filtered and
+  normalised copies, gradients, an N × 2 matrix of per-pixel arrays and two centred copies of it)
+  was materialised as nested JavaScript arrays. The detector now keeps luminance in a single
+  `Float32Array` and computes gradients on the fly in two streaming passes. Results are
+  unchanged (covered by parity tests against the public helpers). Measured on a 4-core cloud
+  VM with Node 22:
+
+  | Image | Before | After |
+  |---|---|---|
+  | 1024 × 1024 | 931 ms, 380 MB peak RSS | 35 ms, 70 MB |
+  | 4032 × 3024 (12 MP phone photo) | 24.3 s, 3.5 GB | 0.42 s, 240 MB |
 
 ### Added
+- `npm run benchmark`: times the detector on a range of image sizes.
 - `npm run test:package`: builds the package, loads it via `require()` and `import`, and checks
   the published type declarations.
 - `npm run typecheck`, and a `prepublishOnly` guard that runs lint, typecheck, tests and the

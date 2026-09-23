@@ -89,7 +89,7 @@ export function computeCovarianceMatrix(matrix: number[][]): number[][] {
  * @param matrix - Symmetric matrix (D × D)
  * @returns Eigenvalues (descending) and matching unit eigenvectors
  */
-function computeEigenDecomposition(matrix: number[][]): {
+export function computeEigenDecomposition(matrix: number[][]): {
   eigenvalues: number[];
   eigenvectors: number[][];
 } {
@@ -240,34 +240,42 @@ export function computePCAScore(pcaResult: PCAResult): number {
     return 0;
   }
 
-  // Primary variance: Higher concentration in first component suggests
-  // more structured (real) or chaotic (synthetic) patterns
-  const primaryVariance = explainedVariance[0];
-
   // Compute projection statistics
   const mean = projection.reduce((sum, val) => sum + val, 0) / projection.length;
-  const variance = projection.reduce((sum, val) => 
+  const variance = projection.reduce((sum, val) =>
     sum + (val - mean) * (val - mean), 0
   ) / projection.length;
   const stdDev = Math.sqrt(variance);
 
   // Compute kurtosis (measure of tail heaviness)
-  // Synthetic images often show higher kurtosis due to unstable gradients
   let kurtosis = 0;
   if (stdDev > 0) {
     const fourthMoment = projection.reduce((sum, val) => {
       const normalised = (val - mean) / stdDev;
       return sum + normalised * normalised * normalised * normalised;
     }, 0) / projection.length;
-    kurtosis = fourthMoment - 3; // Excess kurtosis
+    kurtosis = fourthMoment;
   }
+
+  return combinePCAScore(explainedVariance[0], kurtosis);
+}
+
+/**
+ * Combines the primary variance ratio and projection kurtosis into a score
+ *
+ * @param primaryVariance - Fraction of variance explained by the first component
+ * @param kurtosis - Kurtosis of the projection onto the first component (0 if undefined)
+ * @returns Score between 0 and 1 (higher values indicate more likely synthetic)
+ */
+export function combinePCAScore(primaryVariance: number, kurtosis: number): number {
+  // Excess kurtosis (0 for a Gaussian); a projection with no variance contributes nothing
+  const excessKurtosis = kurtosis > 0 ? kurtosis - 3 : 0;
 
   // Combine metrics into a score
   // Synthetic images typically show:
   // - Lower primary variance concentration (more dispersed)
   // - Higher kurtosis (heavier tails)
-  const score = (1 - primaryVariance) * 0.6 + Math.max(0, kurtosis) * 0.4;
+  const score = (1 - primaryVariance) * 0.6 + Math.max(0, excessKurtosis) * 0.4;
 
   return Math.max(0, Math.min(1, score));
 }
-
