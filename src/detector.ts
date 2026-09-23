@@ -1,5 +1,9 @@
 import { ImageData, DetectionResult, DetectorOptions, GradientField } from './types';
-import { imageToLuminanceMatrix, normaliseLuminance } from './luminance';
+import {
+  imageToLuminanceMatrix,
+  normaliseLuminance,
+  filterCompressionArtifacts,
+} from './luminance';
 import { computeGradients } from './gradients';
 import { computeEigenDecomposition, combinePCAScore } from './pca';
 import {
@@ -8,6 +12,7 @@ import {
   normalisePlane,
   gradientStatistics,
   projectionKurtosis,
+  localCoherence,
 } from './analysis';
 import { computeConfidence } from './confidence';
 
@@ -134,10 +139,8 @@ export class SyntheticImageDetector {
     // Step 7: Compute detection score
     const rawScore = combinePCAScore(primaryVariance, kurtosis);
 
-    // Step 8: Gradient field coherence (resultant length over total magnitude)
-    const [meanX, meanY] = stats.mean;
-    const coherence =
-      stats.sumMagnitude > 0 ? (Math.hypot(meanX, meanY) * stats.count) / stats.sumMagnitude : 0;
+    // Step 8: Average local orientation coherence of the gradients
+    const coherence = localCoherence(plane);
 
     // Determine if synthetic based on threshold
     const isSynthetic = rawScore >= this.options.threshold;
@@ -159,19 +162,27 @@ export class SyntheticImageDetector {
   /**
    * Analyses an image and returns detailed gradient analysis
    * Useful for debugging and visualisation
-   * 
+   *
+   * Applies the same preprocessing as `analyse()` for the current options, so
+   * the returned field is the one the detector measures. Note that the field
+   * is returned as nested arrays, which use far more memory than `analyse()`
+   * itself for large images.
+   *
    * @param imageData - Image data in RGBA format
    * @returns Gradient field data
    */
   public analyseGradients(imageData: ImageData): GradientField {
     this.validateImageData(imageData);
 
-    const luminanceMatrix = imageToLuminanceMatrix(imageData);
-    const processedLuminance = this.options.normaliseGradients
-      ? normaliseLuminance(luminanceMatrix)
-      : luminanceMatrix;
+    let luminanceMatrix = imageToLuminanceMatrix(imageData);
+    if (this.options.filterCompressionArtifacts) {
+      luminanceMatrix = filterCompressionArtifacts(luminanceMatrix);
+    }
+    if (this.options.normaliseGradients) {
+      luminanceMatrix = normaliseLuminance(luminanceMatrix);
+    }
 
-    return computeGradients(processedLuminance);
+    return computeGradients(luminanceMatrix);
   }
 
   /**

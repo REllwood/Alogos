@@ -54,7 +54,11 @@ export interface DetectionResult {
     pixelsAnalysed: number;
     /** Variance explained by first principal component */
     primaryVariance: number;
-    /** Gradient field coherence metric */
+    /**
+     * Average local orientation coherence of the gradients (0-1): the mean, over
+     * 8 × 8 blocks, of how strongly the gradients in each block share a single
+     * orientation. 1 means clean edges and lines, 0 means isotropic texture or noise.
+     */
     coherence: number;
   };
 }
@@ -65,9 +69,21 @@ export interface DetectionResult {
 export interface DetectorOptions {
   /** Threshold for synthetic detection (default: 0.5) */
   threshold?: number;
-  /** Number of principal components to compute (default: 5) */
+  /**
+   * Number of principal components to compute (default: 5)
+   *
+   * @deprecated Has no effect. Each gradient is a 2-D vector, so there are only
+   * ever two principal components, and the detector uses the first. Still
+   * validated (must be a positive integer) for backwards compatibility.
+   */
   numComponents?: number;
-  /** Whether to normalise gradients (default: true) */
+  /**
+   * Whether to normalise luminance to [0, 1] before computing gradients (default: true)
+   *
+   * @deprecated Has no effect on detection: every statistic the detector uses
+   * is unchanged by rescaling brightness. It only changes the scale of the
+   * field returned by `analyseGradients()`.
+   */
   normaliseGradients?: boolean;
   /** Minimum image dimension to process (default: 64) */
   minImageSize?: number;

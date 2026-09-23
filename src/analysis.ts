@@ -1,5 +1,6 @@
 import { ImageData } from './types';
 import { rgbToLuminance } from './luminance';
+import { structureTensorCoherence } from './gradients';
 
 /**
  * Internal, memory-efficient analysis pipeline used by the detector
@@ -128,15 +129,13 @@ export interface GradientStatistics {
   mean: [number, number];
   /** 2 × 2 covariance matrix of the gradient vectors */
   covariance: number[][];
-  /** Sum of gradient magnitudes */
-  sumMagnitude: number;
 }
 
 /**
  * Computes gradient statistics in a single pass without storing the gradients
  *
  * @param plane - Luminance plane
- * @returns Mean, covariance and magnitude sum of the gradient vectors
+ * @returns Mean and covariance of the gradient vectors
  */
 export function gradientStatistics(plane: LuminancePlane): GradientStatistics {
   const { data: src, width, height } = plane;
@@ -148,7 +147,6 @@ export function gradientStatistics(plane: LuminancePlane): GradientStatistics {
   let sumXX = 0;
   let sumYY = 0;
   let sumXY = 0;
-  let sumMagnitude = 0;
 
   for (let y = 0; y < height; y++) {
     const row = y * width;
@@ -161,7 +159,6 @@ export function gradientStatistics(plane: LuminancePlane): GradientStatistics {
       sumXX += gx * gx;
       sumYY += gy * gy;
       sumXY += gx * gy;
-      sumMagnitude += Math.sqrt(gx * gx + gy * gy);
     }
   }
 
@@ -178,7 +175,6 @@ export function gradientStatistics(plane: LuminancePlane): GradientStatistics {
       [covXX, covXY],
       [covXY, covYY],
     ],
-    sumMagnitude,
   };
 }
 
@@ -226,4 +222,60 @@ export function projectionKurtosis(
   const m4 = sum4 / n - (4 * m1 * sum3) / n + 6 * m1 * m1 * (sum2 / n) - 3 * m1 ** 4;
 
   return m2 > 0 ? m4 / (m2 * m2) : 0;
+}
+
+/**
+ * Computes the average local orientation coherence of a plane's gradients
+ *
+ * Streaming equivalent of `computeGradientCoherence(computeGradients(...))`:
+ * the plane is split into non-overlapping blocks aligned with the top-left
+ * corner, and the structure-tensor coherence of each block is averaged over
+ * blocks that have gradient energy.
+ *
+ * @param plane - Luminance plane
+ * @param blockSize - Block side length in pixels (default 8)
+ * @returns Mean block coherence (0-1); 0 if there is no gradient energy
+ */
+export function localCoherence(plane: LuminancePlane, blockSize = 8): number {
+  const { data: src, width, height } = plane;
+  const size = Math.min(blockSize, width, height);
+  const blocksX = Math.floor(width / size);
+  const blocksY = Math.floor(height / size);
+
+  // Structure-tensor sums for one row of blocks at a time
+  const jxx = new Float64Array(blocksX);
+  const jyy = new Float64Array(blocksX);
+  const jxy = new Float64Array(blocksX);
+
+  let sum = 0;
+  let count = 0;
+
+  for (let by = 0; by < blocksY; by++) {
+    jxx.fill(0);
+    jyy.fill(0);
+    jxy.fill(0);
+
+    for (let y = by * size; y < (by + 1) * size; y++) {
+      const row = y * width;
+      for (let x = 0; x < blocksX * size; x++) {
+        const i = row + x;
+        const gx = gradientX(src, width, x, i);
+        const gy = gradientY(src, width, height, y, i);
+        const b = Math.floor(x / size);
+        jxx[b] += gx * gx;
+        jyy[b] += gy * gy;
+        jxy[b] += gx * gy;
+      }
+    }
+
+    for (let b = 0; b < blocksX; b++) {
+      const coherence = structureTensorCoherence(jxx[b], jyy[b], jxy[b]);
+      if (!Number.isNaN(coherence)) {
+        sum += coherence;
+        count++;
+      }
+    }
+  }
+
+  return count > 0 ? sum / count : 0;
 }

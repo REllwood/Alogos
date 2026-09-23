@@ -46,6 +46,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   |---|---|---|
   | 1024 × 1024 | 931 ms, 380 MB peak RSS | 35 ms, 70 MB |
   | 4032 × 3024 (12 MP phone photo) | 24.3 s, 3.5 GB | 0.42 s, 240 MB |
+- `coherence` (in `metadata` and `computeGradientCoherence`) was the length of the summed
+  gradient vectors divided by the summed magnitudes. Over a whole image that sum telescopes to
+  the difference between the border pixels, so it said almost nothing about the image and was
+  close to 0 for every photo. It is now the standard orientation coherence of the structure
+  tensor, (λ1 − λ2) / (λ1 + λ2), averaged over 8 × 8 blocks: 1 where gradients share one
+  orientation (clean edges and lines), 0 for isotropic texture or noise. Opposite gradients on
+  either side of a line now count as the same orientation. `computeGradientCoherence` takes an
+  optional block size.
+- `analyseGradients()` skipped the compression filter that `analyse()` applies, so it did not
+  return the gradients the detector actually measured. It now uses the same preprocessing.
+
+### Deprecated
+- `numComponents`: gradients are 2-D vectors, so there are only ever two principal components and
+  the detector only uses the first. The option is still validated but has no effect.
+- `normaliseGradients`: every statistic the detector uses is unchanged by rescaling brightness,
+  so this never affected detection. It still scales the field returned by `analyseGradients()`.
 
 ### Added
 - `imageToLuminanceMatrix`, the correctly cased name for `imageToluminanceMatrix`. The old name

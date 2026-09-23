@@ -122,7 +122,26 @@ describe('Gradient Computation', () => {
       expect(coherence).toBeCloseTo(1);
     });
 
-    it('should return low coherence for random gradients', () => {
+    it('should return zero coherence for isotropic gradients', () => {
+      const gradientField = {
+        gx: [
+          [1, 0],
+          [-1, 0],
+        ],
+        gy: [
+          [0, 1],
+          [0, -1],
+        ],
+        width: 2,
+        height: 2,
+      };
+
+      const coherence = computeGradientCoherence(gradientField);
+      expect(coherence).toBeCloseTo(0, 12);
+    });
+
+    it('should treat opposite gradients as the same orientation', () => {
+      // Both sides of a diagonal line: gradients point in opposite directions
       const gradientField = {
         gx: [
           [1, -1],
@@ -136,8 +155,48 @@ describe('Gradient Computation', () => {
         height: 2,
       };
 
-      const coherence = computeGradientCoherence(gradientField);
-      expect(coherence).toBeLessThan(0.5);
+      expect(computeGradientCoherence(gradientField)).toBeCloseTo(1, 12);
+    });
+
+    it('should average coherence over blocks', () => {
+      // Left 2x2 block: all horizontal gradients (coherence 1)
+      // Right 2x2 block: isotropic gradients (coherence 0)
+      const gradientField = {
+        gx: [
+          [1, 1, 1, 0],
+          [1, 1, -1, 0],
+        ],
+        gy: [
+          [0, 0, 0, 1],
+          [0, 0, 0, -1],
+        ],
+        width: 4,
+        height: 2,
+      };
+
+      expect(computeGradientCoherence(gradientField, 2)).toBeCloseTo(0.5, 12);
+    });
+
+    it('should skip blocks without gradient energy', () => {
+      const gradientField = {
+        gx: [
+          [1, 1, 0, 0],
+          [1, 1, 0, 0],
+        ],
+        gy: [
+          [0, 0, 0, 0],
+          [0, 0, 0, 0],
+        ],
+        width: 4,
+        height: 2,
+      };
+
+      expect(computeGradientCoherence(gradientField, 2)).toBeCloseTo(1, 12);
+    });
+
+    it('should reject an invalid block size', () => {
+      const gradientField = { gx: [[1]], gy: [[0]], width: 1, height: 1 };
+      expect(() => computeGradientCoherence(gradientField, 0)).toThrow(RangeError);
     });
 
     it('should handle zero gradients', () => {
