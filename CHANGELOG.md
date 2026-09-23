@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- The published package could not be loaded in Node.js: `import 'alogos'` threw
+  `exports is not defined in ES module scope` and `require('alogos')` returned an empty object.
+  The build now emits `dist/index.cjs` and `dist/index.mjs` with an `exports` map and
+  bundled type declarations for both module formats (verified with `attw`).
+- `npm run lint` failed because the ESLint config was written as an ES module; it is now
+  `.eslintrc.cjs`.
+
+### Added
+- `npm run test:package`: builds the package, loads it via `require()` and `import`, and checks
+  the published type declarations.
+- `npm run typecheck`, and a `prepublishOnly` guard that runs lint, typecheck, tests and the
+  package check before publishing.
+
+### Removed
+- Redundant `.npmignore` (the `files` field in `package.json` already controls the tarball) and
+  unused Rollup plugins.
+
+### Planned
+- WebAssembly acceleration for large images
+- Additional statistical metrics
+- Model-specific detection improvements
+- CLI tool for batch processing
+- Image preprocessing utilities
+- Visualisation tools for gradient fields
+
 ## [1.0.0] - 2025-01-01
 
 ### Acknowledgements
@@ -33,14 +61,3 @@ This library implements the gradient field analysis technique discovered by Kavi
 - Detailed metadata (coherence, variance, etc.)
 - Configurable thresholds and parameters
 - Support for custom image preprocessing
-
-## [Unreleased]
-
-### Planned
-- WebAssembly acceleration for large images
-- Additional statistical metrics
-- Model-specific detection improvements
-- CLI tool for batch processing
-- Image preprocessing utilities
-- Visualisation tools for gradient fields
-
