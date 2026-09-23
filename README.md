@@ -149,7 +149,7 @@ console.log('Y-gradient at (10, 10):', gradientField.gy[10][10]);
 
 ```typescript
 import {
-  imageToluminanceMatrix,
+  imageToLuminanceMatrix,
   computeGradients,
   flattenGradientField,
   performPCA,
@@ -157,7 +157,7 @@ import {
 } from 'alogos';
 
 // Step-by-step analysis
-const luminance = imageToluminanceMatrix(imageData);
+const luminance = imageToLuminanceMatrix(imageData);
 const gradients = computeGradients(luminance);
 const gradientMatrix = flattenGradientField(gradients);
 const pcaResult = performPCA(gradientMatrix, 5);

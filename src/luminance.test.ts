@@ -1,4 +1,9 @@
-import { rgbToLuminance, imageToluminanceMatrix, normaliseLuminance } from './luminance';
+import {
+  rgbToLuminance,
+  imageToLuminanceMatrix,
+  imageToluminanceMatrix,
+  normaliseLuminance,
+} from './luminance';
 import { ImageData } from './types';
 
 describe('Luminance Conversion', () => {
@@ -34,7 +39,7 @@ describe('Luminance Conversion', () => {
     });
   });
 
-  describe('imageToluminanceMatrix', () => {
+  describe('imageToLuminanceMatrix', () => {
     it('should convert a simple 2x2 image', () => {
       const imageData: ImageData = {
         width: 2,
@@ -47,7 +52,7 @@ describe('Luminance Conversion', () => {
         ]),
       };
 
-      const matrix = imageToluminanceMatrix(imageData);
+      const matrix = imageToLuminanceMatrix(imageData);
 
       expect(matrix.length).toBe(2);
       expect(matrix[0].length).toBe(2);
@@ -64,8 +69,12 @@ describe('Luminance Conversion', () => {
         data: new Uint8ClampedArray([]),
       };
 
-      const matrix = imageToluminanceMatrix(imageData);
+      const matrix = imageToLuminanceMatrix(imageData);
       expect(matrix.length).toBe(0);
+    });
+
+    it('should keep the deprecated imageToluminanceMatrix alias working', () => {
+      expect(imageToluminanceMatrix).toBe(imageToLuminanceMatrix);
     });
 
     it('should ignore alpha channel', () => {
@@ -75,7 +84,7 @@ describe('Luminance Conversion', () => {
         data: new Uint8ClampedArray([128, 128, 128, 0]), // Transparent grey
       };
 
-      const matrix = imageToluminanceMatrix(imageData);
+      const matrix = imageToLuminanceMatrix(imageData);
       expect(matrix[0][0]).toBeCloseTo(128);
     });
   });
