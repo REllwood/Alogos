@@ -21,7 +21,7 @@ export function rgbToLuminance(r: number, g: number, b: number): number {
  * @param imageData - Image data with RGBA pixel values
  * @returns 2D array of luminance values
  */
-export function imageToluminanceMatrix(imageData: ImageData): number[][] {
+export function imageToLuminanceMatrix(imageData: ImageData): number[][] {
   const { width, height, data } = imageData;
   const luminanceMatrix: number[][] = [];
 
@@ -41,6 +41,14 @@ export function imageToluminanceMatrix(imageData: ImageData): number[][] {
 
   return luminanceMatrix;
 }
+
+/**
+ * Converts an entire image from RGBA to a 2D luminance matrix
+ *
+ * @deprecated Use {@link imageToLuminanceMatrix}. This alias with its original
+ * lower-case "l" is kept so existing code keeps working.
+ */
+export const imageToluminanceMatrix = imageToLuminanceMatrix;
 
 /**
  * Normalises luminance values to the range [0, 1]
@@ -104,7 +112,7 @@ export function filterCompressionArtifacts(luminanceMatrix: number[][]): number[
         // Keep edges as-is
         row.push(luminanceMatrix[y][x]);
       } else {
-        // Apply high-pass filter: emphasize differences from local mean
+        // Apply high-pass filter: emphasise differences from local mean
         const localMean = (
           luminanceMatrix[y - 1][x - 1] + luminanceMatrix[y - 1][x] + luminanceMatrix[y - 1][x + 1] +
           luminanceMatrix[y][x - 1] + luminanceMatrix[y][x] + luminanceMatrix[y][x + 1] +

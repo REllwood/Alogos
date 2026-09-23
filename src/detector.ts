@@ -1,5 +1,5 @@
 import { ImageData, DetectionResult, DetectorOptions, GradientField } from './types';
-import { imageToluminanceMatrix, normaliseLuminance } from './luminance';
+import { imageToLuminanceMatrix, normaliseLuminance } from './luminance';
 import { computeGradients } from './gradients';
 import { computeEigenDecomposition, combinePCAScore } from './pca';
 import {
@@ -166,7 +166,7 @@ export class SyntheticImageDetector {
   public analyseGradients(imageData: ImageData): GradientField {
     this.validateImageData(imageData);
 
-    const luminanceMatrix = imageToluminanceMatrix(imageData);
+    const luminanceMatrix = imageToLuminanceMatrix(imageData);
     const processedLuminance = this.options.normaliseGradients
       ? normaliseLuminance(luminanceMatrix)
       : luminanceMatrix;

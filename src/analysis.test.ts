@@ -6,7 +6,7 @@ import {
   projectionKurtosis,
 } from './analysis';
 import {
-  imageToluminanceMatrix,
+  imageToLuminanceMatrix,
   filterCompressionArtifacts,
   normaliseLuminance,
 } from './luminance';
@@ -59,8 +59,8 @@ function expectMatricesClose(actual: number[][], expected: number[][], digits: n
 describe('Typed-array analysis pipeline', () => {
   const image = texturedImage(97, 83, 1);
 
-  it('should compute the same luminance as imageToluminanceMatrix', () => {
-    expectMatricesClose(toMatrix(luminancePlane(image)), imageToluminanceMatrix(image), 3);
+  it('should compute the same luminance as imageToLuminanceMatrix', () => {
+    expectMatricesClose(toMatrix(luminancePlane(image)), imageToLuminanceMatrix(image), 3);
   });
 
   it('should filter like filterCompressionArtifacts', () => {
@@ -124,7 +124,7 @@ describe('Typed-array analysis pipeline', () => {
 
   describe('detector parity with the reference pipeline', () => {
     function referenceAnalysis(img: ImageData, filter: boolean, normalise: boolean) {
-      let luminance = imageToluminanceMatrix(img);
+      let luminance = imageToLuminanceMatrix(img);
       if (filter) luminance = filterCompressionArtifacts(luminance);
       if (normalise) luminance = normaliseLuminance(luminance);
       const gradients = computeGradients(luminance);

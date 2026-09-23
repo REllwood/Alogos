@@ -48,11 +48,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   | 4032 × 3024 (12 MP phone photo) | 24.3 s, 3.5 GB | 0.42 s, 240 MB |
 
 ### Added
+- `imageToLuminanceMatrix`, the correctly cased name for `imageToluminanceMatrix`. The old name
+  still works but is deprecated.
+- A test that keeps the exported `VERSION` in sync with `package.json`.
 - `npm run benchmark`: times the detector on a range of image sizes.
 - `npm run test:package`: builds the package, loads it via `require()` and `import`, and checks
   the published type declarations.
 - `npm run typecheck`, and a `prepublishOnly` guard that runs lint, typecheck, tests and the
   package check before publishing.
+
+### Changed
+- LICENCE: filled in the copyright line (it still had a `[Rhys E]` placeholder and no year) and
+  restored "sublicense" (the verb; "licence" is only the noun in Australian English).
 
 ### Removed
 - Redundant `.npmignore` (the `files` field in `package.json` already controls the tarball) and

@@ -23,8 +23,9 @@ export type {
 
 // Utility functions for advanced usage
 export { 
-  rgbToLuminance, 
-  imageToluminanceMatrix, 
+  rgbToLuminance,
+  imageToLuminanceMatrix,
+  imageToluminanceMatrix,
   normaliseLuminance,
   filterCompressionArtifacts 
 } from './luminance';
