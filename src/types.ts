@@ -28,13 +28,13 @@ export interface GradientField {
  * Result of PCA analysis
  */
 export interface PCAResult {
-  /** Principal components (eigenvectors) */
+  /** Principal components (unit eigenvectors), ordered by decreasing variance */
   components: number[][];
-  /** Explained variance for each component */
+  /** Fraction of the total variance explained by each returned component (0-1) */
   explainedVariance: number[];
-  /** Projection of the data onto principal components */
+  /** Projection of the centred data onto the first principal component */
   projection: number[];
-  /** Total variance explained */
+  /** Total variance of the data (trace of the covariance matrix) */
   totalVariance: number;
 }
 

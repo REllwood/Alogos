@@ -14,6 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bundled type declarations for both module formats (verified with `attw`).
 - `npm run lint` failed because the ESLint config was written as an ES module; it is now
   `.eslintrc.cjs`.
+- PCA used randomly seeded power iteration, so results could differ between runs on the same
+  image and could report a primary variance below 0.5 (impossible for 2-D data). It now uses
+  a deterministic Jacobi eigendecomposition that is exact to machine precision.
+- `explainedVariance` was divided by the sum of the *computed* eigenvalues only, so asking for
+  one component always reported 100%. It is now relative to the total variance of the data,
+  and `totalVariance` is the trace of the covariance matrix.
+- `performPCA` centred the data twice; it now centres once.
+- `performPCA` now throws a `RangeError` for a `numComponents` that is not a positive integer
+  (previously `0` silently produced an empty result). Values above the data dimension are capped.
 
 ### Added
 - `npm run test:package`: builds the package, loads it via `require()` and `import`, and checks
