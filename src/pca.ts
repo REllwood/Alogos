@@ -38,125 +38,148 @@ function centreMatrix(matrix: number[][]): number[][] {
 }
 
 /**
- * Computes the covariance matrix of a data matrix
- * Covariance matrix C = (1/N) * M^T * M
- * where M is the centred data matrix
- * 
- * @param matrix - Input matrix (N rows × D columns)
+ * Computes the covariance matrix of data that has already been centred
+ *
+ * @param centred - Centred data matrix (N rows × D columns)
  * @returns Covariance matrix (D × D)
  */
-export function computeCovarianceMatrix(matrix: number[][]): number[][] {
-  if (matrix.length === 0) return [];
-  
-  const centred = centreMatrix(matrix);
+function covarianceOfCentred(centred: number[][]): number[][] {
   const numRows = centred.length;
   const numCols = centred[0].length;
 
-  // Compute M^T * M
-  const covariance: number[][] = [];
+  // Compute M^T * M / N (the matrix is symmetric, so fill both halves at once)
+  const covariance: number[][] = Array.from({ length: numCols }, () => new Array(numCols).fill(0));
   for (let i = 0; i < numCols; i++) {
-    const row: number[] = [];
-    for (let j = 0; j < numCols; j++) {
+    for (let j = i; j < numCols; j++) {
       let sum = 0;
       for (let k = 0; k < numRows; k++) {
         sum += centred[k][i] * centred[k][j];
       }
-      row.push(sum / numRows);
+      covariance[i][j] = sum / numRows;
+      covariance[j][i] = covariance[i][j];
     }
-    covariance.push(row);
   }
 
   return covariance;
 }
 
 /**
- * Computes eigenvalues and eigenvectors using the power iteration method
- * This is a simplified implementation suitable for small matrices
- * 
- * @param matrix - Symmetric matrix
- * @param numComponents - Number of components to compute
- * @returns Eigenvalues and eigenvectors
+ * Computes the covariance matrix of a data matrix
+ * Covariance matrix C = (1/N) * M^T * M
+ * where M is the centred data matrix
+ *
+ * @param matrix - Input matrix (N rows × D columns)
+ * @returns Covariance matrix (D × D)
  */
-function computeEigenDecomposition(
-  matrix: number[][],
-  numComponents: number
-): { eigenvalues: number[]; eigenvectors: number[][] } {
+export function computeCovarianceMatrix(matrix: number[][]): number[][] {
+  if (matrix.length === 0) return [];
+  return covarianceOfCentred(centreMatrix(matrix));
+}
+
+/**
+ * Computes all eigenvalues and eigenvectors of a symmetric matrix using the
+ * cyclic Jacobi method
+ *
+ * The method is deterministic and accurate to machine precision for the small
+ * matrices used here (a 2 × 2 matrix is solved exactly by a single rotation).
+ * Eigenvalues are returned in descending order. Each eigenvector's sign is
+ * fixed so that its largest-magnitude entry is positive, which keeps results
+ * reproducible between runs.
+ *
+ * @param matrix - Symmetric matrix (D × D)
+ * @returns Eigenvalues (descending) and matching unit eigenvectors
+ */
+function computeEigenDecomposition(matrix: number[][]): {
+  eigenvalues: number[];
+  eigenvectors: number[][];
+} {
   const n = matrix.length;
   if (n === 0) return { eigenvalues: [], eigenvectors: [] };
 
-  const eigenvalues: number[] = [];
-  const eigenvectors: number[][] = [];
+  const a = matrix.map((row) => [...row]);
+  const v: number[][] = Array.from({ length: n }, (_, i) =>
+    Array.from({ length: n }, (_, j) => (i === j ? 1 : 0))
+  );
 
-  // Work on a copy of the matrix for deflation
-  const workMatrix = matrix.map(row => [...row]);
+  let total = 0;
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) total += a[i][j] * a[i][j];
+  }
 
-  for (let comp = 0; comp < Math.min(numComponents, n); comp++) {
-    // Initialise random vector
-    let vector = new Array(n).fill(0).map(() => Math.random() - 0.5);
-    
-    // Normalise
-    let norm = Math.sqrt(vector.reduce((sum, v) => sum + v * v, 0));
-    vector = vector.map(v => v / norm);
-
-    // Power iteration
-    const maxIterations = 100;
-    const tolerance = 1e-6;
-    let eigenvalue = 0;
-
-    for (let iter = 0; iter < maxIterations; iter++) {
-      // Multiply matrix by vector
-      const newVector = new Array(n).fill(0);
-      for (let i = 0; i < n; i++) {
-        for (let j = 0; j < n; j++) {
-          newVector[i] += workMatrix[i][j] * vector[j];
-        }
-      }
-
-      // Compute eigenvalue (Rayleigh quotient)
-      eigenvalue = 0;
-      for (let i = 0; i < n; i++) {
-        eigenvalue += vector[i] * newVector[i];
-      }
-
-      // Normalise new vector
-      norm = Math.sqrt(newVector.reduce((sum, v) => sum + v * v, 0));
-      if (norm < 1e-10) break;
-      
-      const normalisedVector = newVector.map(v => v / norm);
-
-      // Check convergence
-      const diff = vector.reduce((sum, v, i) => 
-        sum + Math.abs(v - normalisedVector[i]), 0
-      );
-      
-      vector = normalisedVector;
-      
-      if (diff < tolerance) break;
+  const maxSweeps = 50;
+  for (let sweep = 0; sweep < maxSweeps; sweep++) {
+    let offDiagonal = 0;
+    for (let p = 0; p < n; p++) {
+      for (let q = p + 1; q < n; q++) offDiagonal += a[p][q] * a[p][q];
     }
+    if (offDiagonal <= 1e-30 * total) break;
 
-    eigenvalues.push(eigenvalue);
-    eigenvectors.push(vector);
+    for (let p = 0; p < n; p++) {
+      for (let q = p + 1; q < n; q++) {
+        if (a[p][q] === 0) continue;
 
-    // Deflate the matrix (remove this component)
-    for (let i = 0; i < n; i++) {
-      for (let j = 0; j < n; j++) {
-        workMatrix[i][j] -= eigenvalue * vector[i] * vector[j];
+        // Rotation angle that zeroes a[p][q]
+        const theta = (a[q][q] - a[p][p]) / (2 * a[p][q]);
+        const t = (theta >= 0 ? 1 : -1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
+        const c = 1 / Math.sqrt(t * t + 1);
+        const s = t * c;
+
+        for (let k = 0; k < n; k++) {
+          const akp = a[k][p];
+          const akq = a[k][q];
+          a[k][p] = c * akp - s * akq;
+          a[k][q] = s * akp + c * akq;
+        }
+        for (let k = 0; k < n; k++) {
+          const apk = a[p][k];
+          const aqk = a[q][k];
+          a[p][k] = c * apk - s * aqk;
+          a[q][k] = s * apk + c * aqk;
+        }
+        for (let k = 0; k < n; k++) {
+          const vkp = v[k][p];
+          const vkq = v[k][q];
+          v[k][p] = c * vkp - s * vkq;
+          v[k][q] = s * vkp + c * vkq;
+        }
       }
     }
   }
+
+  const order = Array.from({ length: n }, (_, i) => i).sort((i, j) => a[j][j] - a[i][i]);
+
+  const eigenvalues = order.map((i) => a[i][i]);
+  const eigenvectors = order.map((col) => {
+    const vector = v.map((row) => row[col]);
+    let largest = 0;
+    for (let k = 1; k < n; k++) {
+      if (Math.abs(vector[k]) > Math.abs(vector[largest])) largest = k;
+    }
+    return vector[largest] < 0 ? vector.map((x) => -x) : vector;
+  });
 
   return { eigenvalues, eigenvectors };
 }
 
 /**
  * Performs Principal Component Analysis on a data matrix
- * 
+ *
+ * The analysis is exact and deterministic: repeated calls on the same data
+ * return identical results.
+ *
  * @param data - Input data matrix (N rows × D columns)
- * @param numComponents - Number of principal components to compute
- * @returns PCA result with components, variance, and projection
+ * @param numComponents - Number of principal components to return (a positive
+ *   integer; values larger than D are capped at D)
+ * @returns PCA result with components, explained variance ratios (relative to
+ *   the total variance of the data), and the projection onto the first component
+ * @throws RangeError if numComponents is not a positive integer
  */
 export function performPCA(data: number[][], numComponents: number = 5): PCAResult {
-  if (data.length === 0) {
+  if (!Number.isInteger(numComponents) || numComponents < 1) {
+    throw new RangeError(`numComponents must be a positive integer, got ${numComponents}`);
+  }
+
+  if (data.length === 0 || data[0].length === 0) {
     return {
       components: [],
       explainedVariance: [],
@@ -165,37 +188,34 @@ export function performPCA(data: number[][], numComponents: number = 5): PCAResu
     };
   }
 
-  // Centre the data
+  // Centre the data once and derive the covariance matrix from it
   const centred = centreMatrix(data);
+  const covariance = covarianceOfCentred(centred);
 
-  // Compute covariance matrix
-  const covariance = computeCovarianceMatrix(data);
+  // Full eigendecomposition (D is small), then keep the leading components
+  const decomposition = computeEigenDecomposition(covariance);
+  const k = Math.min(numComponents, covariance.length);
+  // Round-off can leave tiny negative eigenvalues; variance cannot be negative
+  const eigenvalues = decomposition.eigenvalues.slice(0, k).map((val) => Math.max(0, val));
+  const eigenvectors = decomposition.eigenvectors.slice(0, k);
 
-  // Compute eigendecomposition
-  const { eigenvalues, eigenvectors } = computeEigenDecomposition(
-    covariance,
-    numComponents
-  );
+  // Total variance of the data is the trace of the covariance matrix
+  const totalVariance = covariance.reduce((sum, row, i) => sum + row[i], 0);
 
-  // Compute total variance
-  const totalVariance = eigenvalues.reduce((sum, val) => sum + Math.abs(val), 0);
-
-  // Compute explained variance ratios
-  const explainedVariance = eigenvalues.map(val => 
-    totalVariance > 0 ? Math.abs(val) / totalVariance : 0
+  // Explained variance ratio of each returned component
+  const explainedVariance = eigenvalues.map((val) =>
+    totalVariance > 0 ? val / totalVariance : 0
   );
 
   // Project data onto first principal component for analysis
   const projection: number[] = [];
-  if (eigenvectors.length > 0) {
-    const firstComponent = eigenvectors[0];
-    for (let i = 0; i < centred.length; i++) {
-      let proj = 0;
-      for (let j = 0; j < centred[i].length; j++) {
-        proj += centred[i][j] * firstComponent[j];
-      }
-      projection.push(proj);
+  const firstComponent = eigenvectors[0];
+  for (let i = 0; i < centred.length; i++) {
+    let proj = 0;
+    for (let j = 0; j < centred[i].length; j++) {
+      proj += centred[i][j] * firstComponent[j];
     }
+    projection.push(proj);
   }
 
   return {
