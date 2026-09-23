@@ -23,6 +23,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `performPCA` centred the data twice; it now centres once.
 - `performPCA` now throws a `RangeError` for a `numComponents` that is not a positive integer
   (previously `0` silently produced an empty result). Values above the data dimension are capped.
+- `confidence` was `|rawScore - threshold| / threshold`, which only reached 1 on both sides when
+  the threshold was 0.5 (at a threshold of 0.9 the strongest possible "synthetic" result showed
+  0.11 confidence) and was `NaN` for a threshold of 0. Confidence is now the distance from the
+  threshold divided by the distance to the relevant end of the range, so it runs from 0 at the
+  threshold to 1 at either extreme for any threshold.
+- Detector options are now validated when the detector is created and in `setOptions()`:
+  `threshold` must be strictly between 0 and 1, `numComponents` a positive integer,
+  `minImageSize` an integer of at least 3, and the flags booleans. Invalid values throw a
+  `RangeError` or `TypeError` instead of silently producing meaningless results, and a failed
+  `setOptions()` leaves the existing options unchanged. Options passed as `undefined` fall back
+  to their defaults.
+- Image width and height must now be integers.
 
 ### Added
 - `npm run test:package`: builds the package, loads it via `require()` and `import`, and checks
