@@ -1,0 +1,5 @@
+numpy>=1.26
+pandas>=2.0
+pillow>=10.0
+pyarrow>=14.0
+scikit-learn>=1.3

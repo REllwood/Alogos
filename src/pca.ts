@@ -89,7 +89,7 @@ export function computeCovarianceMatrix(matrix: number[][]): number[][] {
  * @param matrix - Symmetric matrix (D × D)
  * @returns Eigenvalues (descending) and matching unit eigenvectors
  */
-export function computeEigenDecomposition(matrix: number[][]): {
+function computeEigenDecomposition(matrix: number[][]): {
   eigenvalues: number[];
   eigenvectors: number[][];
 } {
@@ -227,11 +227,16 @@ export function performPCA(data: number[][], numComponents: number = 5): PCAResu
 }
 
 /**
- * Computes statistical properties of the PCA projection
- * Used to distinguish between real and synthetic images
- * 
+ * Computes the scoring formula used by Alogos 1.0.0
+ *
+ * @deprecated Not used by the detector and not a reliable indicator: it adds
+ * 0.4 × excess kurtosis, and real photographs have heavy-tailed gradients
+ * (excess kurtosis of 3-40), so almost every photo scores 1. On the evaluation
+ * data it labelled 100% of real photos as synthetic. Kept only for backwards
+ * compatibility; use `SyntheticImageDetector` instead.
+ *
  * @param pcaResult - Result from PCA analysis
- * @returns Statistical score (higher values indicate more likely synthetic)
+ * @returns Score between 0 and 1 (higher meant "more likely synthetic")
  */
 export function computePCAScore(pcaResult: PCAResult): number {
   const { explainedVariance, projection } = pcaResult;
@@ -261,13 +266,13 @@ export function computePCAScore(pcaResult: PCAResult): number {
 }
 
 /**
- * Combines the primary variance ratio and projection kurtosis into a score
+ * Combines the primary variance ratio and projection kurtosis into the 1.0.0 score
  *
  * @param primaryVariance - Fraction of variance explained by the first component
  * @param kurtosis - Kurtosis of the projection onto the first component (0 if undefined)
  * @returns Score between 0 and 1 (higher values indicate more likely synthetic)
  */
-export function combinePCAScore(primaryVariance: number, kurtosis: number): number {
+function combinePCAScore(primaryVariance: number, kurtosis: number): number {
   // Excess kurtosis (0 for a Gaussian); a projection with no variance contributes nothing
   const excessKurtosis = kurtosis > 0 ? kurtosis - 3 : 0;
 

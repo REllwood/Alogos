@@ -34,3 +34,7 @@ yarn-error.log*
 
 # Packed tarballs
 *.tgz
+
+# Research datasets and derived feature tables (not redistributed; see research/README.md)
+research/data/
+__pycache__/

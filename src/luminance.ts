@@ -88,11 +88,15 @@ export function normaliseLuminance(luminanceMatrix: number[][]): number[][] {
 }
 
 /**
- * Applies a simple high-pass filter to reduce JPEG compression block artifacts
- * This helps focus on diffusion model artifacts rather than compression patterns
- * 
+ * Applies a 3 × 3 unsharp-mask filter: L + 0.5 × (L − local mean)
+ *
+ * @deprecated Not used by the detector. This was described as a high-pass
+ * filter that reduces JPEG block artefacts, but it sharpens the image, which
+ * strengthens block edges rather than suppressing them. Kept only for
+ * backwards compatibility.
+ *
  * @param luminanceMatrix - 2D array of luminance values
- * @returns Filtered luminance matrix
+ * @returns Filtered luminance matrix (edge pixels unchanged)
  */
 export function filterCompressionArtifacts(luminanceMatrix: number[][]): number[][] {
   const height = luminanceMatrix.length;
@@ -103,8 +107,6 @@ export function filterCompressionArtifacts(luminanceMatrix: number[][]): number[
 
   const filtered: number[][] = [];
   
-  // Simple 3x3 high-pass filter kernel focusing on finer details
-  // This reduces the impact of JPEG 8x8 block boundaries
   for (let y = 0; y < height; y++) {
     const row: number[] = [];
     for (let x = 0; x < width; x++) {
@@ -112,7 +114,7 @@ export function filterCompressionArtifacts(luminanceMatrix: number[][]): number[
         // Keep edges as-is
         row.push(luminanceMatrix[y][x]);
       } else {
-        // Apply high-pass filter: emphasise differences from local mean
+        // Unsharp mask: push each pixel away from its local mean
         const localMean = (
           luminanceMatrix[y - 1][x - 1] + luminanceMatrix[y - 1][x] + luminanceMatrix[y - 1][x + 1] +
           luminanceMatrix[y][x - 1] + luminanceMatrix[y][x] + luminanceMatrix[y][x + 1] +

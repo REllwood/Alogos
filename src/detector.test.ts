@@ -4,7 +4,11 @@ import { computeConfidence } from './confidence';
 
 describe('SyntheticImageDetector', () => {
   // Helper to create test image data
-  function createTestImage(width: number, height: number, pattern: 'uniform' | 'gradient' | 'checkerboard'): ImageData {
+  function createTestImage(
+    width: number,
+    height: number,
+    pattern: 'uniform' | 'gradient' | 'checkerboard'
+  ): ImageData {
     const data = new Uint8ClampedArray(width * height * 4);
 
     for (let y = 0; y < height; y++) {
@@ -99,6 +103,12 @@ describe('SyntheticImageDetector', () => {
   });
 
   describe('analyse', () => {
+    it('should be deterministic', () => {
+      const detector = new SyntheticImageDetector();
+      const imageData = createTestImage(100, 100, 'checkerboard');
+      expect(detector.analyse(imageData)).toEqual(detector.analyse(imageData));
+    });
+
     it('should analyse a valid image', () => {
       const detector = new SyntheticImageDetector();
       const imageData = createTestImage(100, 100, 'gradient');
@@ -196,15 +206,56 @@ describe('SyntheticImageDetector', () => {
     });
   });
 
-  describe('analyseGradients', () => {
-    it('should apply the same preprocessing as analyse', () => {
-      const imageData = createTestImage(80, 80, 'gradient');
-      const filtered = new SyntheticImageDetector({ filterCompressionArtifacts: true });
-      const unfiltered = new SyntheticImageDetector({ filterCompressionArtifacts: false });
+  describe('analyseFeatures', () => {
+    it('should return the features behind the verdict', () => {
+      const detector = new SyntheticImageDetector();
+      const imageData = createTestImage(100, 100, 'checkerboard');
 
-      expect(filtered.analyseGradients(imageData)).not.toEqual(
-        unfiltered.analyseGradients(imageData)
+      const features = detector.analyseFeatures(imageData);
+      const result = detector.analyse(imageData);
+
+      expect(result.metadata.features).toEqual(features);
+      expect(result.metadata.primaryVariance).toBe(features.primaryVariance);
+      expect(result.metadata.coherence).toBe(features.localCoherence);
+    });
+
+    it('should validate the image like analyse', () => {
+      const detector = new SyntheticImageDetector();
+      expect(() => detector.analyseFeatures(createTestImage(32, 32, 'gradient'))).toThrow(
+        'Image too small'
       );
+    });
+  });
+
+  describe('deprecated options', () => {
+    it.each([
+      ['numComponents', { numComponents: 1 }, { numComponents: 7 }],
+      ['normaliseGradients', { normaliseGradients: true }, { normaliseGradients: false }],
+      [
+        'filterCompressionArtifacts',
+        { filterCompressionArtifacts: true },
+        { filterCompressionArtifacts: false },
+      ],
+    ])('%s should not change the result', (_name, a, b) => {
+      const imageData = createTestImage(90, 90, 'gradient');
+      expect(new SyntheticImageDetector(a).analyse(imageData)).toEqual(
+        new SyntheticImageDetector(b).analyse(imageData)
+      );
+    });
+  });
+
+  describe('analyseGradients', () => {
+    it('should only change scale when normaliseGradients is set', () => {
+      const imageData = createTestImage(80, 80, 'gradient');
+      const raw = new SyntheticImageDetector({ normaliseGradients: false }).analyseGradients(
+        imageData
+      );
+      const normalised = new SyntheticImageDetector({ normaliseGradients: true }).analyseGradients(
+        imageData
+      );
+
+      const ratio = normalised.gx[40][40] / raw.gx[40][40];
+      expect(normalised.gx[10][30] / raw.gx[10][30]).toBeCloseTo(ratio, 10);
     });
 
     it('should return gradient field', () => {
@@ -228,9 +279,9 @@ describe('SyntheticImageDetector', () => {
   describe('setOptions', () => {
     it('should update options', () => {
       const detector = new SyntheticImageDetector({ threshold: 0.5 });
-      
+
       detector.setOptions({ threshold: 0.8 });
-      
+
       const options = detector.getOptions();
       expect(options.threshold).toBe(0.8);
     });
@@ -247,9 +298,9 @@ describe('SyntheticImageDetector', () => {
         threshold: 0.5,
         numComponents: 5,
       });
-      
+
       detector.setOptions({ threshold: 0.8 });
-      
+
       const options = detector.getOptions();
       expect(options.threshold).toBe(0.8);
       expect(options.numComponents).toBe(5); // Should remain unchanged
@@ -275,4 +326,3 @@ describe('SyntheticImageDetector', () => {
     });
   });
 });
-
