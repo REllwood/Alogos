@@ -1,8 +1,4 @@
-import {
-  computeGradients,
-  flattenGradientField,
-  computeGradientCoherence,
-} from './gradients';
+import { computeGradients, flattenGradientField, computeGradientCoherence } from './gradients';
 
 describe('Gradient Computation', () => {
   describe('computeGradients', () => {
@@ -218,4 +214,3 @@ describe('Gradient Computation', () => {
     });
   });
 });
-

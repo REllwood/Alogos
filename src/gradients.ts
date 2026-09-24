@@ -2,13 +2,13 @@ import { GradientField } from './types';
 
 /**
  * Computes spatial gradients of a luminance matrix using central differences
- * 
+ *
  * For interior points, uses central differences:
  * Gx(x,y) = (L(x+1,y) - L(x-1,y)) / 2
  * Gy(x,y) = (L(x,y+1) - L(x,y-1)) / 2
- * 
+ *
  * For edge points, uses forward/backward differences
- * 
+ *
  * @param luminanceMatrix - 2D array of luminance values
  * @returns Gradient field with x and y components
  */
@@ -77,9 +77,9 @@ export function computeGradients(luminanceMatrix: number[][]): GradientField {
 /**
  * Flattens a gradient field into a matrix where each row is a pixel
  * and columns are [Gx, Gy] for that pixel
- * 
+ *
  * Result is an N×2 matrix where N = width × height
- * 
+ *
  * @param gradientField - Gradient field to flatten
  * @returns Flattened matrix (N×2)
  */

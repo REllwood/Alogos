@@ -3,9 +3,9 @@ import { ImageData } from './types';
 /**
  * Converts RGB values to luminance using the standard photometric formula
  * L = 0.2126 * R + 0.7152 * G + 0.0722 * B
- * 
+ *
  * These coefficients account for human perception sensitivity to different colours
- * 
+ *
  * @param r - Red channel value (0-255)
  * @param g - Green channel value (0-255)
  * @param b - Blue channel value (0-255)
@@ -17,7 +17,7 @@ export function rgbToLuminance(r: number, g: number, b: number): number {
 
 /**
  * Converts an entire image from RGBA to a 2D luminance matrix
- * 
+ *
  * @param imageData - Image data with RGBA pixel values
  * @returns 2D array of luminance values
  */
@@ -33,7 +33,7 @@ export function imageToLuminanceMatrix(imageData: ImageData): number[][] {
       const g = data[idx + 1];
       const b = data[idx + 2];
       // Alpha channel (data[idx + 3]) is ignored for luminance calculation
-      
+
       row.push(rgbToLuminance(r, g, b));
     }
     luminanceMatrix.push(row);
@@ -52,14 +52,14 @@ export const imageToluminanceMatrix = imageToLuminanceMatrix;
 
 /**
  * Normalises luminance values to the range [0, 1]
- * 
+ *
  * @param luminanceMatrix - 2D array of luminance values
  * @returns Normalised luminance matrix
  */
 export function normaliseLuminance(luminanceMatrix: number[][]): number[][] {
   const height = luminanceMatrix.length;
   if (height === 0) return [];
-  
+
   const width = luminanceMatrix[0].length;
   if (width === 0) return [];
 
@@ -78,13 +78,11 @@ export function normaliseLuminance(luminanceMatrix: number[][]): number[][] {
   // Avoid division by zero
   const range = max - min;
   if (range === 0) {
-    return luminanceMatrix.map(row => row.map(() => 0));
+    return luminanceMatrix.map((row) => row.map(() => 0));
   }
 
   // Normalise
-  return luminanceMatrix.map(row =>
-    row.map(value => (value - min) / range)
-  );
+  return luminanceMatrix.map((row) => row.map((value) => (value - min) / range));
 }
 
 /**
@@ -101,12 +99,12 @@ export function normaliseLuminance(luminanceMatrix: number[][]): number[][] {
 export function filterCompressionArtifacts(luminanceMatrix: number[][]): number[][] {
   const height = luminanceMatrix.length;
   if (height === 0) return [];
-  
+
   const width = luminanceMatrix[0].length;
   if (width === 0 || height < 3 || width < 3) return luminanceMatrix;
 
   const filtered: number[][] = [];
-  
+
   for (let y = 0; y < height; y++) {
     const row: number[] = [];
     for (let x = 0; x < width; x++) {
@@ -115,12 +113,18 @@ export function filterCompressionArtifacts(luminanceMatrix: number[][]): number[
         row.push(luminanceMatrix[y][x]);
       } else {
         // Unsharp mask: push each pixel away from its local mean
-        const localMean = (
-          luminanceMatrix[y - 1][x - 1] + luminanceMatrix[y - 1][x] + luminanceMatrix[y - 1][x + 1] +
-          luminanceMatrix[y][x - 1] + luminanceMatrix[y][x] + luminanceMatrix[y][x + 1] +
-          luminanceMatrix[y + 1][x - 1] + luminanceMatrix[y + 1][x] + luminanceMatrix[y + 1][x + 1]
-        ) / 9;
-        
+        const localMean =
+          (luminanceMatrix[y - 1][x - 1] +
+            luminanceMatrix[y - 1][x] +
+            luminanceMatrix[y - 1][x + 1] +
+            luminanceMatrix[y][x - 1] +
+            luminanceMatrix[y][x] +
+            luminanceMatrix[y][x + 1] +
+            luminanceMatrix[y + 1][x - 1] +
+            luminanceMatrix[y + 1][x] +
+            luminanceMatrix[y + 1][x + 1]) /
+          9;
+
         // Keep the high-frequency component
         const highFreq = luminanceMatrix[y][x] - localMean;
         row.push(luminanceMatrix[y][x] + highFreq * 0.5);
@@ -131,4 +135,3 @@ export function filterCompressionArtifacts(luminanceMatrix: number[][]): number[
 
   return filtered;
 }
-

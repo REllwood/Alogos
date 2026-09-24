@@ -45,10 +45,22 @@ describe('Luminance Conversion', () => {
         width: 2,
         height: 2,
         data: new Uint8ClampedArray([
-          255, 0, 0, 255, // Red pixel
-          0, 255, 0, 255, // Green pixel
-          0, 0, 255, 255, // Blue pixel
-          255, 255, 255, 255, // White pixel
+          255,
+          0,
+          0,
+          255, // Red pixel
+          0,
+          255,
+          0,
+          255, // Green pixel
+          0,
+          0,
+          255,
+          255, // Blue pixel
+          255,
+          255,
+          255,
+          255, // White pixel
         ]),
       };
 
@@ -134,4 +146,3 @@ describe('Luminance Conversion', () => {
     });
   });
 });
-

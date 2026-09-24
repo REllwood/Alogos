@@ -37,4 +37,3 @@ describe('Package Exports', () => {
     expect(alogos.VERSION).toBe(pkg.version);
   });
 });
-

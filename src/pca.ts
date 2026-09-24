@@ -2,13 +2,13 @@ import { PCAResult } from './types';
 
 /**
  * Computes the mean of each column in a matrix
- * 
+ *
  * @param matrix - Input matrix (rows × columns)
  * @returns Array of column means
  */
 function computeMean(matrix: number[][]): number[] {
   if (matrix.length === 0) return [];
-  
+
   const numRows = matrix.length;
   const numCols = matrix[0].length;
   const means: number[] = new Array(numCols).fill(0);
@@ -26,15 +26,13 @@ function computeMean(matrix: number[][]): number[] {
 
 /**
  * Centres a matrix by subtracting the mean of each column
- * 
+ *
  * @param matrix - Input matrix
  * @returns Centred matrix
  */
 function centreMatrix(matrix: number[][]): number[][] {
   const means = computeMean(matrix);
-  return matrix.map(row =>
-    row.map((value, colIdx) => value - means[colIdx])
-  );
+  return matrix.map((row) => row.map((value, colIdx) => value - means[colIdx]));
 }
 
 /**
@@ -203,9 +201,7 @@ export function performPCA(data: number[][], numComponents: number = 5): PCAResu
   const totalVariance = covariance.reduce((sum, row, i) => sum + row[i], 0);
 
   // Explained variance ratio of each returned component
-  const explainedVariance = eigenvalues.map((val) =>
-    totalVariance > 0 ? val / totalVariance : 0
-  );
+  const explainedVariance = eigenvalues.map((val) => (totalVariance > 0 ? val / totalVariance : 0));
 
   // Project data onto first principal component for analysis
   const projection: number[] = [];
@@ -247,18 +243,18 @@ export function computePCAScore(pcaResult: PCAResult): number {
 
   // Compute projection statistics
   const mean = projection.reduce((sum, val) => sum + val, 0) / projection.length;
-  const variance = projection.reduce((sum, val) =>
-    sum + (val - mean) * (val - mean), 0
-  ) / projection.length;
+  const variance =
+    projection.reduce((sum, val) => sum + (val - mean) * (val - mean), 0) / projection.length;
   const stdDev = Math.sqrt(variance);
 
   // Compute kurtosis (measure of tail heaviness)
   let kurtosis = 0;
   if (stdDev > 0) {
-    const fourthMoment = projection.reduce((sum, val) => {
-      const normalised = (val - mean) / stdDev;
-      return sum + normalised * normalised * normalised * normalised;
-    }, 0) / projection.length;
+    const fourthMoment =
+      projection.reduce((sum, val) => {
+        const normalised = (val - mean) / stdDev;
+        return sum + normalised * normalised * normalised * normalised;
+      }, 0) / projection.length;
     kurtosis = fourthMoment;
   }
 

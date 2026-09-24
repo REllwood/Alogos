@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   local orientation coherence feature.
 
 ### Added
+- GitHub Actions CI: lint, format check, typecheck, tests and the package check on Node.js 18,
+  20 and 22 for every push to `main` and every pull request.
+- `npm run format:check`, also run before publishing.
 - `SyntheticImageDetector.analyseFeatures()` and the exported `ImageFeatures` type.
 - `research/`: feature reference implementation, dataset extraction, training and evaluation
   scripts (not published to npm).
