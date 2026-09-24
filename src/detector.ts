@@ -1,19 +1,9 @@
 import { ImageData, DetectionResult, DetectorOptions, GradientField } from './types';
-import {
-  imageToLuminanceMatrix,
-  normaliseLuminance,
-  filterCompressionArtifacts,
-} from './luminance';
+import { imageToLuminanceMatrix, normaliseLuminance } from './luminance';
 import { computeGradients } from './gradients';
-import { computeEigenDecomposition, combinePCAScore } from './pca';
-import {
-  luminancePlane,
-  filterPlane,
-  normalisePlane,
-  gradientStatistics,
-  projectionKurtosis,
-  localCoherence,
-} from './analysis';
+import { luminancePlane } from './analysis';
+import { extractFeatures, ImageFeatures } from './features';
+import { syntheticProbability } from './scoring';
 import { computeConfidence } from './confidence';
 
 /**
@@ -58,7 +48,9 @@ function validateOptions(options: Required<DetectorOptions>): void {
     options;
 
   if (typeof threshold !== 'number' || !(threshold > 0 && threshold < 1)) {
-    throw new RangeError(`threshold must be a number between 0 and 1 (exclusive), got ${threshold}`);
+    throw new RangeError(
+      `threshold must be a number between 0 and 1 (exclusive), got ${threshold}`
+    );
   }
   if (!Number.isInteger(numComponents) || numComponents < 1) {
     throw new RangeError(`numComponents must be a positive integer, got ${numComponents}`);
@@ -94,15 +86,43 @@ export class SyntheticImageDetector {
 
   /**
    * Analyses an image to determine if it's synthetic
-   * 
+   *
+   * Computes seven statistics of the image's luminance gradient field (see
+   * `ImageFeatures`) and converts them into a probability with a model fitted
+   * on labelled real and AI-generated images. Treat the result as one signal
+   * among many: see the README for measured accuracy and known failure cases.
+   *
    * @param imageData - Image data in RGBA format
    * @returns Detection result with confidence score
+   * @throws Error if the image data is invalid or smaller than `minImageSize`
    */
   public analyse(imageData: ImageData): DetectionResult {
-    // Validate input
+    const features = this.analyseFeatures(imageData);
+    const rawScore = syntheticProbability(features);
+
+    return {
+      isSynthetic: rawScore >= this.options.threshold,
+      confidence: computeConfidence(rawScore, this.options.threshold),
+      rawScore,
+      metadata: {
+        pixelsAnalysed: imageData.width * imageData.height,
+        primaryVariance: features.primaryVariance,
+        coherence: features.localCoherence,
+        features,
+      },
+    };
+  }
+
+  /**
+   * Computes the gradient-field features the detector's verdict is based on
+   *
+   * @param imageData - Image data in RGBA format
+   * @returns Feature values
+   * @throws Error if the image data is invalid or smaller than `minImageSize`
+   */
+  public analyseFeatures(imageData: ImageData): ImageFeatures {
     this.validateImageData(imageData);
 
-    // Check minimum size
     if (
       imageData.width < this.options.minImageSize ||
       imageData.height < this.options.minImageSize
@@ -112,61 +132,18 @@ export class SyntheticImageDetector {
       );
     }
 
-    // Step 1: Convert RGB to luminance
-    let plane = luminancePlane(imageData);
-
-    // Step 2: Optionally filter compression artifacts
-    if (this.options.filterCompressionArtifacts) {
-      plane = filterPlane(plane);
-    }
-
-    // Step 3: Optionally normalise
-    if (this.options.normaliseGradients) {
-      plane = normalisePlane(plane);
-    }
-
-    // Step 4: Gradient statistics (gradients are computed on the fly, never stored)
-    const stats = gradientStatistics(plane);
-
-    // Step 5: PCA of the 2 × 2 gradient covariance matrix
-    const { eigenvalues, eigenvectors } = computeEigenDecomposition(stats.covariance);
-    const totalVariance = stats.covariance[0][0] + stats.covariance[1][1];
-    const primaryVariance = totalVariance > 0 ? Math.max(0, eigenvalues[0]) / totalVariance : 0;
-
-    // Step 6: Kurtosis of the gradients projected onto the first principal component
-    const kurtosis = projectionKurtosis(plane, stats, eigenvectors[0]);
-
-    // Step 7: Compute detection score
-    const rawScore = combinePCAScore(primaryVariance, kurtosis);
-
-    // Step 8: Average local orientation coherence of the gradients
-    const coherence = localCoherence(plane);
-
-    // Determine if synthetic based on threshold
-    const isSynthetic = rawScore >= this.options.threshold;
-
-    const confidence = computeConfidence(rawScore, this.options.threshold);
-
-    return {
-      isSynthetic,
-      confidence,
-      rawScore,
-      metadata: {
-        pixelsAnalysed: imageData.width * imageData.height,
-        primaryVariance,
-        coherence,
-      },
-    };
+    return extractFeatures(luminancePlane(imageData));
   }
 
   /**
-   * Analyses an image and returns detailed gradient analysis
-   * Useful for debugging and visualisation
+   * Returns the luminance gradient field of an image, for debugging and visualisation
    *
-   * Applies the same preprocessing as `analyse()` for the current options, so
-   * the returned field is the one the detector measures. Note that the field
-   * is returned as nested arrays, which use far more memory than `analyse()`
-   * itself for large images.
+   * Uses central differences in the interior and one-sided differences at the
+   * edges. The detector itself only uses interior gradients. If
+   * `normaliseGradients` is set, luminance is rescaled to [0, 1] first, which
+   * changes the scale of the field but not the detector's result. The field is
+   * returned as nested arrays, which use far more memory than `analyse()` for
+   * large images.
    *
    * @param imageData - Image data in RGBA format
    * @returns Gradient field data
@@ -174,20 +151,17 @@ export class SyntheticImageDetector {
   public analyseGradients(imageData: ImageData): GradientField {
     this.validateImageData(imageData);
 
-    let luminanceMatrix = imageToLuminanceMatrix(imageData);
-    if (this.options.filterCompressionArtifacts) {
-      luminanceMatrix = filterCompressionArtifacts(luminanceMatrix);
-    }
-    if (this.options.normaliseGradients) {
-      luminanceMatrix = normaliseLuminance(luminanceMatrix);
-    }
+    const luminanceMatrix = imageToLuminanceMatrix(imageData);
+    const processed = this.options.normaliseGradients
+      ? normaliseLuminance(luminanceMatrix)
+      : luminanceMatrix;
 
-    return computeGradients(luminanceMatrix);
+    return computeGradients(processed);
   }
 
   /**
    * Updates detector options
-   * 
+   *
    * @param options - New options to merge with existing
    * @throws RangeError or TypeError if an option is invalid (existing options are kept)
    */
@@ -199,7 +173,7 @@ export class SyntheticImageDetector {
 
   /**
    * Gets current detector options
-   * 
+   *
    * @returns Current options
    */
   public getOptions(): Required<DetectorOptions> {
@@ -208,7 +182,7 @@ export class SyntheticImageDetector {
 
   /**
    * Validates image data structure
-   * 
+   *
    * @param imageData - Image data to validate
    * @throws Error if image data is invalid
    */
@@ -242,7 +216,7 @@ export class SyntheticImageDetector {
 /**
  * Convenience function to analyse a single image
  * Creates a detector instance with default options
- * 
+ *
  * @param imageData - Image data in RGBA format
  * @param options - Optional detector configuration
  * @returns Detection result
@@ -254,4 +228,3 @@ export function detectSyntheticImage(
   const detector = new SyntheticImageDetector(options);
   return detector.analyse(imageData);
 }
-

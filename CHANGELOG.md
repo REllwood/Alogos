@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **New detection model.** The 1.0.0 score, `0.6 × (1 − primaryVariance) + 0.4 × excess kurtosis`,
+  labelled every real photo in the evaluation data as AI-generated, because real photos have
+  heavy-tailed gradients and the kurtosis term alone pushed the score to 1. The detector now
+  computes seven gradient-field features (see `ImageFeatures`), including the original PCA
+  statistics, and combines them with a quadratic logistic model fitted on labelled real and
+  AI-generated images. `rawScore` is now a calibrated probability. Measured accuracy, data
+  sources, licences and limitations are documented in `research/README.md` and
+  `research/results.md`, and the scripts there reproduce the model.
+- `DetectionResult.metadata` now includes `features`, and `metadata.coherence` is the detector's
+  local orientation coherence feature.
+
+### Added
+- `SyntheticImageDetector.analyseFeatures()` and the exported `ImageFeatures` type.
+- `research/`: feature reference implementation, dataset extraction, training and evaluation
+  scripts (not published to npm).
+
 ### Fixed
 - The published package could not be loaded in Node.js: `import 'alogos'` threw
   `exports is not defined in ES module scope` and `require('alogos')` returned an empty object.
@@ -58,6 +75,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   return the gradients the detector actually measured. It now uses the same preprocessing.
 
 ### Deprecated
+- `filterCompressionArtifacts` (option and function): the filter it enabled was a sharpening
+  filter, which strengthens JPEG block edges rather than suppressing them. Excluding gradients
+  across JPEG block boundaries instead did not improve accuracy and made results less stable when
+  an image is cropped, so the option now has no effect.
+- `computePCAScore`: the 1.0.0 scoring formula, no longer used by the detector.
 - `numComponents`: gradients are 2-D vectors, so there are only ever two principal components and
   the detector only uses the first. The option is still validated but has no effect.
 - `normaliseGradients`: every statistic the detector uses is unchanged by rescaling brightness,

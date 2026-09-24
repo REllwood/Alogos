@@ -1,3 +1,5 @@
+import type { ImageFeatures } from './features';
+
 /**
  * Represents image data in a format suitable for analysis
  */
@@ -42,17 +44,23 @@ export interface PCAResult {
  * Detection result with confidence score
  */
 export interface DetectionResult {
-  /** Whether the image is likely synthetic (true) or real (false) */
+  /** Whether the image is likely synthetic (rawScore >= threshold) */
   isSynthetic: boolean;
-  /** Confidence score between 0 and 1 */
+  /**
+   * How far rawScore is from the threshold, scaled to 0-1: 0 at the threshold,
+   * 1 at a rawScore of 0 (for a real verdict) or 1 (for a synthetic verdict)
+   */
   confidence: number;
-  /** Raw score from the analysis (can be used for custom thresholding) */
+  /**
+   * Model probability (0-1) that the image is AI-generated, with real and
+   * AI-generated images weighted equally in training. Use it for custom thresholds.
+   */
   rawScore: number;
   /** Additional metadata about the analysis */
   metadata: {
     /** Number of pixels analysed */
     pixelsAnalysed: number;
-    /** Variance explained by first principal component */
+    /** Fraction of gradient variance along the first principal component (0.5-1) */
     primaryVariance: number;
     /**
      * Average local orientation coherence of the gradients (0-1): the mean, over
@@ -60,6 +68,8 @@ export interface DetectionResult {
      * orientation. 1 means clean edges and lines, 0 means isotropic texture or noise.
      */
     coherence: number;
+    /** All gradient-field features the verdict is based on */
+    features: ImageFeatures;
   };
 }
 
@@ -67,7 +77,11 @@ export interface DetectionResult {
  * Configuration options for the detector
  */
 export interface DetectorOptions {
-  /** Threshold for synthetic detection (default: 0.5) */
+  /**
+   * Probability above which an image is reported as synthetic (default: 0.5).
+   * Raise it to reduce false alarms on real photos at the cost of missing more
+   * AI-generated images.
+   */
   threshold?: number;
   /**
    * Number of principal components to compute (default: 5)
@@ -87,7 +101,15 @@ export interface DetectorOptions {
   normaliseGradients?: boolean;
   /** Minimum image dimension to process (default: 64) */
   minImageSize?: number;
-  /** Apply high-pass filter to reduce JPEG compression artifacts (default: true) */
+  /**
+   * Formerly applied a 3 × 3 filter described as reducing JPEG artefacts (default: true)
+   *
+   * @deprecated Has no effect. The filter it enabled actually sharpened the
+   * image. Evaluation showed that the alternative, ignoring gradients across
+   * JPEG 8 × 8 block boundaries, did not improve accuracy and made results less
+   * stable when an image is cropped, so the detector handles compression
+   * through its training data instead (see research/README.md). Still
+   * validated (must be a boolean) for backwards compatibility.
+   */
   filterCompressionArtifacts?: boolean;
 }
-

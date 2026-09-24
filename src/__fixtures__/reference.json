@@ -1,0 +1,38 @@
+{
+  "textured": {
+    "features": {
+      "primaryVariance": 0.813826082276009,
+      "logKurtosis": 2.1240391107011805,
+      "logFineToCoarse": -0.23079499794966632,
+      "logResidual": -0.8601763987010334,
+      "logCross": 0.6019334732027328,
+      "gradientCorrelation": 0.39835213966784766,
+      "localCoherence": 0.592174263422105
+    },
+    "probability": 0.02519088003961445
+  },
+  "smooth": {
+    "features": {
+      "primaryVariance": 0.8488561918231382,
+      "logKurtosis": 3.630916988137119,
+      "logFineToCoarse": -0.36121130968706927,
+      "logResidual": -1.0810285443847358,
+      "logCross": 0.38424214242660376,
+      "gradientCorrelation": 0.47783343549455937,
+      "localCoherence": 0.9215164568722503
+    },
+    "probability": 0.7900437454425477
+  },
+  "stripes": {
+    "features": {
+      "primaryVariance": 0.999880992282184,
+      "logKurtosis": 0.7237144484853297,
+      "logFineToCoarse": -0.7219621983543901,
+      "logResidual": -0.810654917305511,
+      "logCross": -6.996867572147175,
+      "gradientCorrelation": 0.25250926576994975,
+      "localCoherence": 0.9997621725718089
+    },
+    "probability": 1.0
+  }
+}
