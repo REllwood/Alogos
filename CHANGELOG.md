@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned
+- WebAssembly acceleration for large images
+- Additional statistical metrics
+- Model-specific detection improvements
+- CLI tool for batch processing
+- Image preprocessing utilities
+- Visualisation tools for gradient fields
+
+## [2.0.0] - 2026-09-24
+
+Detection now uses a model fitted on labelled images, and several options and helpers that never
+worked as described are fixed or deprecated. See "Migrating from 1.x" in the README.
+
 ### Changed
 - **New detection model.** The 1.0.0 score, `0.6 × (1 − primaryVariance) + 0.4 × excess kurtosis`,
   labelled every real photo in the evaluation data as AI-generated, because real photos have
@@ -18,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `research/results.md`, and the scripts there reproduce the model.
 - `DetectionResult.metadata` now includes `features`, and `metadata.coherence` is the detector's
   local orientation coherence feature.
+- README rewritten to describe what the detector actually measures, with measured accuracy,
+  guidance on interpreting scores, known limitations, corrected performance figures and a
+  migration guide. It previously claimed real photos have "Gaussian-like" gradients and that AI
+  images show unstable high-frequency detail; the evaluation found the opposite.
 
 ### Added
 - GitHub Actions CI: lint, format check, typecheck, tests and the package check on Node.js 18,
@@ -106,15 +123,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Redundant `.npmignore` (the `files` field in `package.json` already controls the tarball) and
   unused Rollup plugins.
 
-### Planned
-- WebAssembly acceleration for large images
-- Additional statistical metrics
-- Model-specific detection improvements
-- CLI tool for batch processing
-- Image preprocessing utilities
-- Visualisation tools for gradient fields
-
-## [1.0.0] - 2025-01-01
+## [1.0.0] - 2025-11-25
 
 ### Acknowledgements
 This library implements the gradient field analysis technique discovered by Kavishka Abeywardhana. See README.md for full attribution.

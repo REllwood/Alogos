@@ -1,32 +1,43 @@
 # Alogos
 
-> A lightweight JavaScript library for detecting synthetic images using luminance-gradient PCA analysis
+> A lightweight JavaScript library that estimates whether an image is AI-generated from the statistics of its luminance gradient field
 
 [![NPM Version](https://img.shields.io/npm/v/alogos.svg)](https://www.npmjs.com/package/alogos)
+[![CI](https://github.com/REllwood/alogos/actions/workflows/ci.yml/badge.svg)](https://github.com/REllwood/alogos/actions/workflows/ci.yml)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
+
+> **Read this first.** Alogos gives a weak, interpretable signal, not proof. On the kinds of
+> images it was trained on it labels about 3 in 4 images correctly; on cameras and generators
+> it has not seen, it can be little better than a coin flip. Never use it on its own to decide
+> whether an image is real. See [Accuracy](#accuracy) and [Limitations](#limitations).
 
 ## Overview
 
-Alogos provides a simple yet effective way to distinguish between real photographs and AI-generated (diffusion model) images by analysing their gradient fields.
+Alogos looks at how brightness changes from pixel to pixel (the image's *gradient field*) and
+measures seven statistics of it, such as how much fine, pixel-level detail the image carries and
+how consistently its edges are oriented. A small model, fitted on thousands of labelled real and
+AI-generated images, turns those statistics into a probability that the image is AI-generated.
 
-Real images produce coherent gradient fields tied to physical lighting and sensor characteristics, while diffusion-generated images show unstable high-frequency structures from the denoising process. By converting RGB to luminance, computing spatial gradients, and evaluating the covariance through PCA, the difference becomes visible in a single projection.
-
-This provides a lightweight and interpretable way to assess image authenticity without relying on metadata or complex classifier models.
+It has no runtime dependencies, runs in browsers and Node.js, and analyses a 1-megapixel image in
+a few tens of milliseconds.
 
 **ELI5:**
-Light in the real world behaves in smooth and predictable ways, cameras capture light using sensors that known and consistent patterns. This creates smooth and coherent gradients (changes to light to dark).
-But AI generated images using diffusion models, generate images by repeatedly removing noise, this process creates tiny unstable high-frequency wiggles in the brightness patterns. These are not obvious to the human eye, but these show up in gradient data. 
+A camera records light through a sensor, and every photo carries a fine, grainy texture from the
+sensor and the lens. Image generators build pictures by gradually removing noise, and the
+pictures they produce tend to be smoother than that at the level of individual pixels. Alogos
+measures that texture, along with a few other properties of the image's edges. The difference is
+real but small, easily blurred by editing, and not the same for every camera or generator, so
+the answer is a probability rather than a verdict.
 
 ## Features
 
-- **Simple API** - Easy to use with sensible defaults
-- **Scientific Approach** - Based on gradient field analysis and PCA
-- **Lightweight** - No heavy dependencies
-- **Fast** - Efficient algorithms suitable for real-time analysis
-- **Interpretable** - Provides detailed metrics and confidence scores
-- **Configurable** - Customisable thresholds and parameters
-- **TypeScript** - Full type definitions included
-- **Well-tested** - Comprehensive test coverage
+- **Simple API** - one call with sensible defaults
+- **Calibrated** - `rawScore` is a probability; scores near 0 or 1 are much more reliable than scores near 0.5
+- **Interpretable** - every verdict comes with the seven named features behind it
+- **Measured** - accuracy on public datasets is documented and reproducible (see [`research/`](research/README.md))
+- **Lightweight** - no runtime dependencies, about 40 kB
+- **Fast** - streaming analysis: about 40 ms for 1 megapixel, under half a second for a 12-megapixel photo
+- **TypeScript** - full type definitions for both ES modules and CommonJS
 
 ## Installation
 
@@ -45,19 +56,24 @@ yarn add alogos
 ```typescript
 import { detectSyntheticImage } from 'alogos';
 
-// Assume you have image data in RGBA format
+// Image data in RGBA format, e.g. from a canvas
 const imageData = {
   width: 800,
   height: 600,
   data: new Uint8ClampedArray(800 * 600 * 4), // RGBA pixel data
 };
 
-// Analyse the image
 const result = detectSyntheticImage(imageData);
 
-console.log(`Is synthetic: ${result.isSynthetic}`);
-console.log(`Confidence: ${result.confidence.toFixed(2)}`);
-console.log(`Raw score: ${result.rawScore.toFixed(3)}`);
+console.log(`Likely AI-generated: ${result.isSynthetic}`);
+console.log(`Probability AI-generated: ${result.rawScore.toFixed(2)}`);
+console.log(`Confidence in verdict: ${result.confidence.toFixed(2)}`);
+```
+
+CommonJS works too:
+
+```javascript
+const { detectSyntheticImage } = require('alogos');
 ```
 
 ## Usage
@@ -67,38 +83,34 @@ console.log(`Raw score: ${result.rawScore.toFixed(3)}`);
 ```typescript
 import { SyntheticImageDetector } from 'alogos';
 
-// Create a detector instance
 const detector = new SyntheticImageDetector();
-
-// Analyse an image
 const result = detector.analyse(imageData);
 
-if (result.isSynthetic) {
-  console.log(`This image is likely synthetic (confidence: ${result.confidence})`);
+if (result.rawScore >= 0.8) {
+  console.log('Strong signs of AI generation');
+} else if (result.rawScore <= 0.2) {
+  console.log('Looks like a camera photo');
 } else {
-  console.log(`This image is likely real (confidence: ${result.confidence})`);
+  console.log('Inconclusive');
 }
 ```
 
-### With Custom Options
+### Choosing a Threshold
+
+`isSynthetic` is `rawScore >= threshold` (default `0.5`). Raise the threshold to reduce false
+alarms on real photos at the cost of missing more AI-generated images:
 
 ```typescript
-import { SyntheticImageDetector } from 'alogos';
-
 const detector = new SyntheticImageDetector({
-  threshold: 0.7,           // Custom detection threshold (0-1)
-  numComponents: 10,        // More principal components for analysis
-  normaliseGradients: true, // Normalise gradient values
-  minImageSize: 128,        // Minimum image dimension
+  threshold: 0.8, // only flag images with strong signs of AI generation
+  minImageSize: 128, // reject images smaller than 128 × 128
 });
-
-const result = detector.analyse(imageData);
 ```
 
-### Getting Image Data from Canvas
+### Getting Image Data from a Canvas
 
 ```typescript
-// In a browser environment
+// In a browser
 const canvas = document.getElementById('myCanvas') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d');
 const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -106,38 +118,57 @@ const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 const result = detectSyntheticImage(imageData);
 ```
 
-### Getting Image Data from File (Node.js)
+Analyse the image at its original size. Drawing it onto a smaller canvas resizes it, which
+changes the pixel-level statistics the detector relies on (see [Limitations](#limitations)).
 
-You'll need a library like `canvas` or `sharp` to read images in Node.js:
+### Getting Image Data from a File (Node.js)
+
+Use a library such as `sharp` to decode the image:
 
 ```typescript
-import { createCanvas, loadImage } from 'canvas';
+import sharp from 'sharp';
 import { detectSyntheticImage } from 'alogos';
 
-async function analyseImageFile(imagePath: string) {
-  const image = await loadImage(imagePath);
-  const canvas = createCanvas(image.width, image.height);
-  const ctx = canvas.getContext('2d');
-  
-  ctx.drawImage(image, 0, 0);
-  const imageData = ctx.getImageData(0, 0, image.width, image.height);
-  
-  return detectSyntheticImage(imageData);
+async function analyseImageFile(path: string) {
+  const { data, info } = await sharp(path)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  return detectSyntheticImage({
+    width: info.width,
+    height: info.height,
+    data: new Uint8ClampedArray(data.buffer, data.byteOffset, data.length),
+  });
 }
 
-// Usage
 const result = await analyseImageFile('./photo.jpg');
 console.log(result);
 ```
 
-### Advanced: Gradient Field Analysis
+### Inspecting the Features Behind a Verdict
 
 ```typescript
-import { SyntheticImageDetector } from 'alogos';
+const result = detector.analyse(imageData);
+console.log(result.metadata.features);
+// For example:
+// {
+//   primaryVariance: 0.57,
+//   logKurtosis: 2.8,
+//   logFineToCoarse: -0.36,
+//   logResidual: -1.28,
+//   logCross: -0.85,
+//   gradientCorrelation: 0.5,
+//   localCoherence: 0.57
+// }
 
-const detector = new SyntheticImageDetector();
+// Or compute the features without a verdict
+const features = detector.analyseFeatures(imageData);
+```
 
-// Get detailed gradient information
+### Gradient Field (for Visualisation)
+
+```typescript
 const gradientField = detector.analyseGradients(imageData);
 
 console.log('Gradient dimensions:', gradientField.width, 'x', gradientField.height);
@@ -145,7 +176,10 @@ console.log('X-gradient at (10, 10):', gradientField.gx[10][10]);
 console.log('Y-gradient at (10, 10):', gradientField.gy[10][10]);
 ```
 
-### Advanced: Using Low-Level APIs
+`analyseGradients` returns nested arrays, which use a lot of memory for large images. `analyse`
+does not build them.
+
+### Low-Level APIs
 
 ```typescript
 import {
@@ -153,82 +187,100 @@ import {
   computeGradients,
   flattenGradientField,
   performPCA,
-  computePCAScore,
+  computeGradientCoherence,
 } from 'alogos';
 
-// Step-by-step analysis
 const luminance = imageToLuminanceMatrix(imageData);
 const gradients = computeGradients(luminance);
-const gradientMatrix = flattenGradientField(gradients);
-const pcaResult = performPCA(gradientMatrix, 5);
-const score = computePCAScore(pcaResult);
+const pca = performPCA(flattenGradientField(gradients), 2);
 
-console.log('Detection score:', score);
-console.log('Primary variance:', pcaResult.explainedVariance[0]);
+console.log('Share of gradient variance on the first component:', pca.explainedVariance[0]);
+console.log('Local orientation coherence:', computeGradientCoherence(gradients));
 ```
 
 ## API Reference
 
-### Main Classes
+### `SyntheticImageDetector`
 
-#### `SyntheticImageDetector`
-
-The main detector class.
-
-**Constructor:**
 ```typescript
 new SyntheticImageDetector(options?: DetectorOptions)
 ```
 
-**Methods:**
-- `analyse(imageData: ImageData): DetectionResult` - Analyses an image
-- `analyseGradients(imageData: ImageData): GradientField` - Returns gradient field
-- `setOptions(options: Partial<DetectorOptions>): void` - Updates options
-- `getOptions(): Required<DetectorOptions>` - Gets current options
+Throws a `RangeError` or `TypeError` if an option is invalid.
 
-### Functions
+| Method | Description |
+|---|---|
+| `analyse(imageData): DetectionResult` | Analyses an image |
+| `analyseFeatures(imageData): ImageFeatures` | Returns the features the verdict is based on |
+| `analyseGradients(imageData): GradientField` | Returns the gradient field, for visualisation |
+| `setOptions(options): void` | Updates options (invalid options throw and leave the current ones unchanged) |
+| `getOptions(): Required<DetectorOptions>` | Returns the current options |
 
-#### `detectSyntheticImage(imageData, options?)`
+`analyse`, `analyseFeatures` and `analyseGradients` throw an `Error` if the image data is
+malformed, and `analyse` and `analyseFeatures` throw if the image is smaller than `minImageSize`.
 
-Convenience function to analyse a single image with default options.
+### `detectSyntheticImage(imageData, options?)`
+
+Creates a detector with the given options and analyses one image.
 
 ### Types
 
 #### `ImageData`
+
 ```typescript
 interface ImageData {
-  width: number;
-  height: number;
-  data: Uint8ClampedArray | number[];
+  width: number; // integer
+  height: number; // integer
+  data: Uint8ClampedArray | number[]; // RGBA, 4 values per pixel
 }
 ```
 
+A browser `ImageData` object works as is.
+
 #### `DetectionResult`
+
 ```typescript
 interface DetectionResult {
-  isSynthetic: boolean;
-  confidence: number;
-  rawScore: number;
+  isSynthetic: boolean; // rawScore >= threshold
+  confidence: number; // 0 at the threshold, 1 at a rawScore of 0 or 1
+  rawScore: number; // probability (0-1) that the image is AI-generated
   metadata: {
     pixelsAnalysed: number;
-    primaryVariance: number;
-    coherence: number;
+    primaryVariance: number; // same as features.primaryVariance
+    coherence: number; // same as features.localCoherence
+    features: ImageFeatures;
   };
 }
 ```
 
+#### `ImageFeatures`
+
+| Feature | Meaning |
+|---|---|
+| `primaryVariance` | Share of gradient variance along the first principal component (0.5-1) |
+| `logKurtosis` | Log kurtosis of gradients projected onto that component (about 1.1 for noise; photos are typically 2-4) |
+| `logFineToCoarse` | Gradient energy at full resolution relative to after 2 × 2 averaging (lower = less fine detail) |
+| `logResidual` | Energy left after subtracting a 3 × 3 local mean, relative to gradient energy (lower = smoother texture) |
+| `logCross` | Mixed-derivative (checkerboard) energy relative to gradient energy |
+| `gradientCorrelation` | Correlation between neighbouring gradients (higher = gradients change more smoothly) |
+| `localCoherence` | Mean orientation coherence of 8 × 8 blocks (1 = clean edges and lines, 0 = isotropic texture) |
+
+None of the features depends on the image's brightness or contrast.
+
 #### `DetectorOptions`
+
 ```typescript
 interface DetectorOptions {
-  threshold?: number;                      // Default: 0.5
-  numComponents?: number;                  // Default: 5
-  normaliseGradients?: boolean;            // Default: true
-  minImageSize?: number;                   // Default: 64
-  filterCompressionArtifacts?: boolean;    // Default: true
+  threshold?: number; // Default: 0.5. Must be between 0 and 1 (exclusive)
+  minImageSize?: number; // Default: 64. Integer, at least 3
+  numComponents?: number; // Deprecated: no effect
+  normaliseGradients?: boolean; // Deprecated: no effect on detection
+  filterCompressionArtifacts?: boolean; // Deprecated: no effect
 }
 ```
 
 #### `GradientField`
+
 ```typescript
 interface GradientField {
   gx: number[][];
@@ -240,88 +292,139 @@ interface GradientField {
 
 ## How It Works
 
-Alogos uses a multi-step process to analyse images:
+1. **Luminance**: each pixel is converted to brightness with `L = 0.2126 R + 0.7152 G + 0.0722 B`.
+2. **Gradients**: horizontal and vertical brightness changes are measured at every interior pixel
+   with central differences, `Gx = [L(x+1, y) − L(x−1, y)] / 2` and `Gy = [L(x, y+1) − L(x, y−1)] / 2`.
+   The gradient field is never stored; the statistics are gathered in a few streaming passes.
+3. **Features**: seven statistics of the gradient field are computed (see
+   [`ImageFeatures`](#imagefeatures)). Two come from principal component analysis of the gradient
+   vectors, the idea this library started from; the others measure pixel-level smoothness and the
+   local orientation of edges.
+4. **Model**: a quadratic logistic regression, fitted on labelled images, converts the features
+   into a probability. Its coefficients are in `src/model.ts`, generated by `research/train.py`.
 
-1. **RGB to Luminance Conversion**: Converts colour images to greyscale using the standard photometric formula: `L = 0.2126 × R + 0.7152 × G + 0.0722 × B`
+The strongest signal it learned is that images from current generators are **smoother at the
+pixel level** than camera photos: they carry less fine-scale energy, and neighbouring gradients
+are more strongly correlated.
 
-2. **Gradient Computation**: Calculates spatial gradients using central differences:
-   - `Gx(x,y) = [L(x+1,y) - L(x-1,y)] / 2`
-   - `Gy(x,y) = [L(x,y+1) - L(x,y-1)] / 2`
+## Accuracy
 
-3. **Matrix Formation**: Flattens the gradient field into an N×2 matrix where N is the number of pixels
+Measured on two public datasets: Defactify (MS COCO photos and images from SD 2.1, SDXL, SD 3,
+DALL-E 3 and Midjourney) and a sample of CommunityForensics (smartphone photos, landscapes and
+COCO photos, and images from community Stable Diffusion models, PixArt and GLIDE). Full details and
+per-source results are in [`research/results.md`](research/results.md).
 
-4. **Covariance Analysis**: Computes the covariance matrix: `C = (1/N) × M^T × M`
+| | Real images correct | AI images correct |
+|---|---|---|
+| Alogos 1.x scoring | 0% | 100% |
+| Sources seen in training (5-fold cross-validation) | 78% | 76% |
+| Sources **not** seen in training (leave-one-source-out) | 45% | 67% |
 
-5. **PCA Decomposition**: Performs eigendecomposition to find principal components
+ROC AUC in cross-validation is 0.85.
 
-6. **Score Computation**: Analyses variance distribution and projection statistics to determine likelihood of synthesis
+### How far to trust a score
 
-Real photographs tend to show:
-- Higher coherence in gradient fields
-- More concentrated variance in primary components
-- Gaussian-like projection distributions
+| rawScore | Share of images | Actually AI-generated |
+|---|---|---|
+| 0.0 - 0.2 | 21% | 10% |
+| 0.2 - 0.4 | 20% | 26% |
+| 0.4 - 0.6 | 19% | 53% |
+| 0.6 - 0.8 | 17% | 69% |
+| 0.8 - 1.0 | 22% | 92% |
 
-Synthetic images tend to show:
-- Unstable high-frequency gradient structures
-- More dispersed variance across components
-- Heavy-tailed projection distributions (higher kurtosis)
+Scores between about 0.4 and 0.6 say almost nothing.
 
 ## Performance
 
-Typical performance on a modern CPU:
-- **Small images** (256×256): ~10-20ms
-- **Medium images** (512×512): ~40-80ms
-- **Large images** (1024×1024): ~150-300ms
+Median time for one analysis on a 4-core cloud VM with Node.js 22 (`npm run benchmark`):
 
-Performance scales roughly with O(n) where n is the number of pixels.
+| Image | Time |
+|---|---|
+| 256 × 256 | 3 ms |
+| 512 × 512 | 9 ms |
+| 1024 × 1024 | 37 ms |
+| 2048 × 2048 | 147 ms |
+| 4032 × 3024 (12 MP phone photo) | 425 ms |
+
+Time grows linearly with the number of pixels. Memory use is about 5 bytes per pixel on top of the
+image itself (about 60 MB for a 12-megapixel photo).
 
 ## Limitations
 
-- Requires images to be at least 64×64 pixels
-- Works best on images with natural content
-- May produce false positives on heavily processed or filtered real images
-- Detection accuracy depends on the quality and type of synthetic generation model
-- Not foolproof - should be used as one signal among many for authenticity verification
+- **Unfamiliar sources.** Accuracy drops sharply on cameras, processing pipelines and generators
+  that are not in the training data. Before smartphone photos were added to training, every
+  smartphone photo in the evaluation set was flagged as AI-generated. Heavily processed photos
+  (phone "computational photography", noise reduction, beauty filters) look smooth, like AI
+  images.
+- **Editing.** Heavy JPEG compression (quality 50) flipped 31% of verdicts, mostly towards "real".
+  Halving the image size flipped 24%, mostly towards "AI-generated". Re-saving at high quality
+  (95) made almost no difference.
+- **Deliberate evasion.** Adding a little noise or sharpening pushes AI-generated images towards
+  "real". Anyone trying to evade detection can do so.
+- **Image types.** The model was trained on photographs and photo-like generated images.
+  Screenshots, illustrations, scans, text and heavily stylised images are outside what it has
+  seen, and its answers for them are not meaningful.
+- **Size.** Images must be at least 64 × 64 pixels (configurable).
 
-### Important Considerations
+Use Alogos as one signal among many, alongside provenance metadata (such as C2PA), reverse image
+search and human judgement.
 
-**JPEG Compression Artifacts**: A significant consideration in synthetic image detection is that real photographs are often JPEG compressed, while synthetic images may be saved as PNG or with minimal compression. This compression difference can create detectable patterns. As noted in research like the "JPEG or Fake" paper, some detection methods inadvertently learn to detect JPEG compression artifacts rather than true synthetic features.
+### JPEG compression
 
-**Mitigation in Alogos**: 
-By default, Alogos applies a high-pass filter (`filterCompressionArtifacts: true`) to reduce the impact of JPEG block artifacts and focus on high-frequency patterns characteristic of diffusion models. This can be disabled if needed:
+Real photos are usually JPEGs while generated images are often PNGs, and a detector can end up
+spotting the file format instead of the content (see "JPEG or Fake?" below). To avoid this, every
+Defactify training image, real or generated, is stored as a JPEG of the same quality, and the
+CommunityForensics images are used both as stored and re-encoded as JPEG.
 
-```typescript
-const detector = new SyntheticImageDetector({
-  filterCompressionArtifacts: false  // Disable if analysing uncompressed images
-});
-```
+## Migrating from 1.x
 
-**Best Practices**:
-- The default settings are optimised for mixed compression scenarios
-- For research or validation, test with consistent compression across all images
-- Be aware that detection is probabilistic - use as one signal among many
-- Consider the image source and processing history in your interpretation
+- `rawScore` is now a calibrated probability from a fitted model, so its values are not
+  comparable with 1.x scores. 1.x labelled almost every real photo as synthetic.
+- Invalid options now throw (`threshold` must be between 0 and 1, `minImageSize` an integer of at
+  least 3, `numComponents` a positive integer). Image width and height must be integers.
+- `confidence` is now scaled correctly for thresholds other than 0.5.
+- `numComponents`, `normaliseGradients` and `filterCompressionArtifacts` are deprecated and do not
+  affect detection. `computePCAScore` and `filterCompressionArtifacts()` are deprecated.
+- `metadata.coherence` and `computeGradientCoherence` now measure local orientation coherence
+  (0-1) instead of a whole-image sum that was close to 0 for every photo.
+- `performPCA` now reports explained variance relative to the total variance, and throws for an
+  invalid number of components.
+- `imageToluminanceMatrix` is renamed `imageToLuminanceMatrix` (the old name still works).
+
+See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ## Contributing
 
-Contributions are welcome! Please open an issue or submit a Pull Request on GitHub.
+Contributions are welcome! Please open an issue or submit a pull request on GitHub. Run
+`npm run lint`, `npm run format:check`, `npm run typecheck`, `npm test` and `npm run test:package`
+before submitting; CI runs the same checks.
+
+To retrain or re-evaluate the model, see [`research/README.md`](research/README.md).
 
 ## Licence
 
-MIT
+MIT. The model coefficients were fitted using datasets with their own licences, one of which is
+for non-commercial research only; see [`research/README.md`](research/README.md#data).
 
 ## Acknowledgements
 
-This library implements the gradient field analysis technique for synthetic image detection discovered and documented by [Kavishka Abeywardhana](https://lk.linkedin.com/in/kavishka-abeywardhana-01b891214). 
+Alogos started as an implementation of the gradient field analysis technique for synthetic image
+detection shared by [Kavishka Abeywardhana](https://lk.linkedin.com/in/kavishka-abeywardhana-01b891214)
+in [this LinkedIn post](https://www.linkedin.com/posts/kavishka-abeywardhana-01b891214_synthetic-image-detection-using-gradient-activity-7397874600769982465-TC0c),
+which demonstrated that luminance-gradient PCA reveals differences between real photographs and
+diffusion-generated images. The idea of analysing the luminance gradient field, and the PCA
+statistics at the heart of it, come from that work. The additional features and the fitted model
+were added in 2.0 after evaluating the approach on labelled datasets.
 
-The approach was originally shared in [this LinkedIn post](https://www.linkedin.com/posts/kavishka-abeywardhana-01b891214_synthetic-image-detection-using-gradient-activity-7397874600769982465-TC0c), where Kavishka demonstrated that luminance-gradient PCA analysis reveals consistent separation between real photographs and diffusion-generated images.
-
-All credit for the discovery and methodology goes to Kavishka Abeywardhana. This library is simply an implementation of his technique made available for the JavaScript/TypeScript ecosystem.
+Evaluation and training use the [Defactify](https://huggingface.co/datasets/Rajarshi-Roy-research/Defactify_Image_Dataset)
+and [CommunityForensics](https://huggingface.co/datasets/OwensLab/CommunityForensics-Small)
+datasets.
 
 ## Further Reading
 
-- [JPEG or Fake? Revealing Common Biases in Generated Image Detection Datasets](https://arxiv.org/abs/2308.10395) - Important research on compression artifacts
-- [Kavishka Abeywardhana's Original Post](https://www.linkedin.com/posts/kavishka-abeywardhana-01b891214_synthetic-image-detection-using-gradient-activity-7397874600769982465-TC0c) - The original gradient field technique 
+- [JPEG or Fake? Revealing Common Biases in Generated Image Detection Datasets](https://arxiv.org/abs/2308.10395) - how compression can masquerade as a detection signal
+- [Community Forensics: Using Thousands of Generators to Train Fake Image Detectors](https://arxiv.org/abs/2411.04125) - why detectors struggle with unseen generators
+- [Kavishka Abeywardhana's original post](https://www.linkedin.com/posts/kavishka-abeywardhana-01b891214_synthetic-image-detection-using-gradient-activity-7397874600769982465-TC0c) - the gradient field technique
 
 ## Support
 
@@ -330,8 +433,6 @@ If you find this library useful, please consider:
 - Reporting bugs
 - Suggesting features
 - Improving documentation
-
-
 
 ## Citation
 
@@ -357,4 +458,3 @@ Please also cite the original technique:
   url={https://www.linkedin.com/posts/kavishka-abeywardhana-01b891214_synthetic-image-detection-using-gradient-activity-7397874600769982465-TC0c}
 }
 ```
-
