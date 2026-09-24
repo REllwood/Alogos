@@ -37,4 +37,4 @@ export { computeGradients, flattenGradientField, computeGradientCoherence } from
 export { performPCA, computePCAScore, computeCovarianceMatrix } from './pca';
 
 // Version
-export const VERSION = '1.0.0';
+export const VERSION = '2.0.0';
